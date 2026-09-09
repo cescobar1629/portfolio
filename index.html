@@ -1087,6 +1087,26 @@
     const TOTAL_CORIOLANUS_IMAGES = 167;
     let currentLightboxIndex = 1;
 
+    // Exact filenames for the gallery, loaded from gallery.json (a
+    // manifest matching your repo's real file listing) rather than
+    // guessed at runtime. Falls back to the same known-correct
+    // pattern if the fetch can't succeed (e.g. opening the file
+    // directly via file:// instead of a real web server).
+    let GALLERY_FILES = null;
+    async function loadGalleryManifest() {
+      try {
+        const res = await fetch('gallery.json');
+        if (!res.ok) throw new Error('gallery.json not reachable');
+        const data = await res.json();
+        GALLERY_FILES = data.images;
+      } catch (e) {
+        GALLERY_FILES = Array.from(
+          { length: TOTAL_CORIOLANUS_IMAGES },
+          (_, i) => `Coriolanus(${i + 1}).JPG`
+        );
+      }
+    }
+
     // Fallback handler specifically for the DSC_2480 preview image
     function handlePreviewError(img) {
       const attempts = [
@@ -1105,33 +1125,12 @@
       }
     }
 
-    // Fallback handler for gallery items. The primary src (set in
-    // assignPoolNode) already matches the confirmed repo layout -
-    // root level, no space, uppercase .JPG - so this only needs to
-    // run if that somehow still fails for a particular file.
+    // Fallback handler for gallery items. Since the primary src now
+    // comes from the exact gallery.json manifest, reaching this means
+    // that specific listed file genuinely isn't reachable - show the
+    // placeholder immediately rather than guessing at more variants.
     function handleCoriolanusError(img, index) {
-      const attempts = [
-        `Coriolanus(${index}).JPG`,
-        `Coriolanus(${index}).jpg`,
-        `Coriolanus (${index}).JPG`,
-        `Coriolanus (${index}).jpg`,
-        `Coriolanus_Images/Coriolanus (${index}).jpg`,
-        `Coriolanus_Images/Coriolanus(${index}).jpg`,
-        `Coriolanus_Images/Coriolanus (${index}).JPG`,
-        `Coriolanus_Images/Coriolanus(${index}).JPG`,
-        `Coriolanus_Images/Coriolanus (${index}).jpeg`,
-        `Coriolanus_Images/Coriolanus(${index}).jpeg`,
-        `Coriolanus_Images/Coriolanus (${index}).png`,
-        `Coriolanus_Images/Coriolanus(${index}).png`
-      ];
-
-      let currentAttempt = img.dataset.attempt ? parseInt(img.dataset.attempt, 10) : 0;
-      if (currentAttempt < attempts.length) {
-        img.dataset.attempt = currentAttempt + 1;
-        img.src = attempts[currentAttempt];
-      } else {
-        renderPlaceholder(img, `#${index}`);
-      }
+      renderPlaceholder(img, `#${index}`);
     }
 
     // ============ VIRTUALIZED GALLERY (recycled node pool) ============
@@ -1229,7 +1228,7 @@
         handleCoriolanusError(this, index);
       };
 
-      const src = `Coriolanus(${index}).JPG`;
+      const src = GALLERY_FILES ? GALLERY_FILES[index - 1] : `Coriolanus(${index}).JPG`;
       if (loadedGalleryIndices.has(index)) {
         delete img.dataset.src;
         img.src = src; // already fetched this session - cache serves it instantly
@@ -1344,7 +1343,7 @@
       const counter = document.getElementById('lightbox-counter');
 
       img.dataset.attempt = "0";
-      img.src = `Coriolanus(${currentLightboxIndex}).JPG`;
+      img.src = GALLERY_FILES ? GALLERY_FILES[currentLightboxIndex - 1] : `Coriolanus(${currentLightboxIndex}).JPG`;
       img.onerror = function() {
         handleCoriolanusError(this, currentLightboxIndex);
       };
@@ -1587,7 +1586,7 @@
     // ================= SIMULATION ENGINE =================
     window.addEventListener('DOMContentLoaded', () => {
       applyTheme('home');
-      buildCoriolanusGallery();
+      loadGalleryManifest().then(buildCoriolanusGallery);
       loadWorks();
 
       const canvas = document.getElementById('feedback-canvas');

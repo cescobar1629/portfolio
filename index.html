@@ -1105,9 +1105,16 @@
       }
     }
 
-    // Fallback handler for gallery items
+    // Fallback handler for gallery items. The primary src (set in
+    // assignPoolNode) already matches the confirmed repo layout -
+    // root level, no space, uppercase .JPG - so this only needs to
+    // run if that somehow still fails for a particular file.
     function handleCoriolanusError(img, index) {
       const attempts = [
+        `Coriolanus(${index}).JPG`,
+        `Coriolanus(${index}).jpg`,
+        `Coriolanus (${index}).JPG`,
+        `Coriolanus (${index}).jpg`,
         `Coriolanus_Images/Coriolanus (${index}).jpg`,
         `Coriolanus_Images/Coriolanus(${index}).jpg`,
         `Coriolanus_Images/Coriolanus (${index}).JPG`,
@@ -1222,7 +1229,7 @@
         handleCoriolanusError(this, index);
       };
 
-      const src = `Coriolanus_Images/Coriolanus (${index}).jpg`;
+      const src = `Coriolanus(${index}).JPG`;
       if (loadedGalleryIndices.has(index)) {
         delete img.dataset.src;
         img.src = src; // already fetched this session - cache serves it instantly
@@ -1337,7 +1344,7 @@
       const counter = document.getElementById('lightbox-counter');
 
       img.dataset.attempt = "0";
-      img.src = `Coriolanus_Images/Coriolanus (${currentLightboxIndex}).jpg`;
+      img.src = `Coriolanus(${currentLightboxIndex}).JPG`;
       img.onerror = function() {
         handleCoriolanusError(this, currentLightboxIndex);
       };

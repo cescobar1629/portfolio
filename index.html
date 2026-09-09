@@ -1,0 +1,1824 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Christopher Escobar | TouchDesigner Artist</title>
+  <meta name="description" content="Christopher Escobar is a Stony Brook University student building real-time particle systems and projection-mapped installations in TouchDesigner, using depth cameras, LiDAR, and Arduino-based sensors.">
+
+  <!-- Structured data (JSON-LD): tells search engines who this site
+       is about and what the work involves, independent of how the
+       page happens to be laid out visually. Improves how the site
+       can be understood, indexed, and surfaced in search results. -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "Person",
+    "name": "Christopher Escobar",
+    "jobTitle": "TouchDesigner Artist",
+    "email": "mailto:christopher.escobar@stonybrook.edu",
+    "affiliation": {
+      "@type": "CollegeOrUniversity",
+      "name": "Stony Brook University"
+    },
+    "knowsAbout": [
+      "TouchDesigner",
+      "Real-time visuals",
+      "Projection mapping",
+      "Kinect Azure",
+      "LiDAR",
+      "Arduino",
+      "Particle systems"
+    ]
+  }
+  </script>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@300;400&display=swap" rel="stylesheet">
+
+  <style>
+    /* ================= DYNAMIC CSS THEME ROOT ================= */
+    :root {
+      --accent-color: #4cc9f0;
+      --accent-glow: rgba(76, 201, 240, 0.4);
+      --accent-soft: rgba(76, 201, 240, 0.15);
+      --glass-border: rgba(76, 201, 240, 0.25);
+      --glass-bg: rgba(6, 17, 33, 0.75);
+      --btn-bg: rgba(10, 30, 55, 0.65);
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      transition: color 0.4s ease, border-color 0.4s ease, box-shadow 0.4s ease;
+    }
+
+    html, body {
+      width: 100%;
+      min-height: 100vh;
+      overflow-x: hidden;
+      overflow-y: auto;
+      background-color: #02060d;
+      color: #f0f4fc;
+      font-family: 'Inter', sans-serif;
+    }
+
+    /* Fixed Simulation Canvas */
+    #feedback-canvas {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      z-index: 1;
+      display: block;
+      pointer-events: none;
+    }
+
+    .vignette {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: radial-gradient(circle at 50% 50%, transparent 40%, rgba(2, 6, 13, 0.85) 100%);
+      z-index: 2;
+      pointer-events: none;
+    }
+
+    /* Lightweight subpage background: layered SVG waves, animated with
+       transform only (GPU-composited, no per-frame canvas drawing) -
+       used instead of the full particle simulation on subpages, where
+       the heavy image gallery needs the main thread free. Shown at
+       both the bottom and top of the screen (the top copy is a
+       vertically-flipped mirror via .aurora-flip). */
+    .aurora-strip {
+      position: fixed;
+      left: 0;
+      width: 100vw;
+      height: 320px;
+      overflow: hidden;
+      z-index: 1;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.7s ease, transform 1.1s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .aurora-strip-bottom {
+      bottom: 0;
+      transform-origin: bottom center;
+      transform: scale(1.35) translateY(10%);
+    }
+    .aurora-strip-bottom.active {
+      opacity: 1;
+      transform: scale(1) translateY(0);
+    }
+
+    .aurora-strip-top {
+      top: 0;
+      transform-origin: top center;
+      transform: scale(1.35) translateY(-10%);
+    }
+    .aurora-strip-top.active {
+      opacity: 0.7;
+      transform: scale(1) translateY(0);
+    }
+
+    .aurora-flip {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      transform: scaleY(-1);
+    }
+
+    .wave-layer {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      width: 200%;
+      height: 100%;
+      will-change: transform;
+    }
+
+    .wave-layer-1 { animation: waveDrift1 9s ease-in-out infinite; opacity: 0.6; }
+    .wave-layer-2 { animation: waveDrift2 13s ease-in-out infinite reverse; opacity: 0.45; }
+
+    .wave-layer-1 path { fill: var(--aurora-c1, rgba(76, 201, 240, 0.35)); }
+    .wave-layer-2 path { fill: var(--aurora-c2, rgba(56, 239, 125, 0.3)); }
+
+    /* Each layer combines its horizontal drift (0 to -50%, looping
+       seamlessly since the path repeats every half of its width) with
+       a vertical bob, so the waves genuinely rise and fall rather than
+       just sliding sideways. Different amplitude/duration per layer
+       keeps it from looking mechanically uniform. */
+    @keyframes waveDrift1 {
+      0%   { transform: translate(0, 0); }
+      25%  { transform: translate(-12.5%, -14px); }
+      50%  { transform: translate(-25%, 4px); }
+      75%  { transform: translate(-37.5%, -10px); }
+      100% { transform: translate(-50%, 0); }
+    }
+
+    @keyframes waveDrift2 {
+      0%   { transform: translate(0, 0); }
+      30%  { transform: translate(-15%, 10px); }
+      60%  { transform: translate(-30%, -12px); }
+      100% { transform: translate(-50%, 0); }
+    }
+
+    /* Layout Container */
+    .app-layout {
+      position: relative;
+      z-index: 3;
+      width: 100%;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 30px 48px 0 48px;
+    }
+
+    /* Header */
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 30px;
+    }
+
+    .brand {
+      cursor: pointer;
+    }
+
+    .brand h1 {
+      font-family: 'Cinzel', serif;
+      font-size: 1.5rem;
+      letter-spacing: 2px;
+      color: #ffffff;
+    }
+
+    .brand p {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.75rem;
+      color: var(--accent-color);
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      text-shadow: 0 0 10px var(--accent-glow);
+    }
+
+    .nav-actions {
+      display: flex;
+      gap: 14px;
+      align-items: center;
+    }
+
+    .btn {
+      padding: 9px 20px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      letter-spacing: 1.2px;
+      text-transform: uppercase;
+      color: #ffffff;
+      background: var(--btn-bg);
+      border: 1px solid var(--glass-border);
+      border-radius: 30px;
+      will-change: transform;
+      text-decoration: none;
+      transition: all 0.3s ease;
+      cursor: pointer;
+      display: inline-block;
+    }
+
+    .btn:hover {
+      border-color: var(--accent-color);
+      box-shadow: 0 0 15px var(--accent-glow);
+      transform: translateY(-2px);
+    }
+
+    .btn-subtle {
+      background: transparent;
+      border-color: rgba(255, 255, 255, 0.2);
+      color: #94a3b8;
+    }
+
+    .btn-subtle:hover {
+      color: #fff;
+      border-color: var(--accent-color);
+    }
+
+    /* Subpage System Visibility */
+    .view-page {
+      display: none;
+      opacity: 0;
+      transition: opacity 0.4s ease;
+      flex-grow: 1;
+    }
+
+    .view-page.active {
+      display: block;
+      opacity: 1;
+      animation: fadeInView 0.4s ease forwards;
+    }
+
+    @keyframes fadeInView {
+      from { opacity: 0; transform: translateY(12px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ================= MAIN HOME VIEW ================= */
+    .hero-center {
+      max-width: 680px;
+      margin: 30px 0 50px 10px;
+    }
+
+    .hero-center h2 {
+      font-family: 'Cinzel', serif;
+      font-size: 2.7rem;
+      line-height: 1.15;
+      margin-bottom: 12px;
+      background: linear-gradient(135deg, #ffffff 40%, var(--accent-color) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .hero-center p {
+      font-size: 0.95rem;
+      color: #94a3b8;
+      line-height: 1.6;
+    }
+
+    .works-shelf {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 20px;
+      margin-bottom: 40px;
+    }
+
+    .card {
+      display: flex;
+      flex-direction: column;
+      background: var(--glass-bg);
+      border: 1px solid var(--glass-border);
+      border-radius: 10px;
+      padding: 16px;
+      transition: transform 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+      cursor: pointer;
+      will-change: transform;
+    }
+
+    .card:hover {
+      border-color: var(--accent-color);
+      transform: translateY(-4px);
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.6), 0 0 15px var(--accent-glow);
+    }
+
+    .card-thumb {
+      width: 100%;
+      height: 110px;
+      border-radius: 6px;
+      overflow: hidden;
+      background: #091728;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      margin-bottom: 12px;
+    }
+
+    .card-thumb img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    .card h3 {
+      font-family: 'Cinzel', serif;
+      font-size: 1rem;
+      color: #ffffff;
+      margin-bottom: 6px;
+    }
+
+    .card p {
+      font-size: 0.8rem;
+      color: #94a3b8;
+      line-height: 1.4;
+      margin-bottom: 10px;
+      flex-grow: 1;
+    }
+
+    .tag {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.68rem;
+      color: var(--accent-color);
+      background: var(--accent-soft);
+      padding: 3px 8px;
+      border-radius: 12px;
+      border: 1px solid var(--glass-border);
+      display: inline-block;
+      width: fit-content;
+    }
+
+    /* Reusable row of action buttons - replaces several repeated
+       inline flex styles that appeared across subpages. */
+    .btn-row {
+      display: flex;
+      gap: 14px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    /* Section header above the production gallery (title + hint) */
+    .gallery-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      margin-top: 30px;
+    }
+
+    .gallery-header h3 {
+      font-family: 'Cinzel', serif;
+      font-size: 1.3rem;
+      color: #fff;
+    }
+
+    .gallery-header span {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.75rem;
+      color: var(--accent-color);
+    }
+
+    /* ================= SUBPAGE CONTAINERS ================= */
+    .subpage-container {
+      max-width: 1000px;
+      margin: 0 auto 50px auto;
+      background: var(--glass-bg);
+      border: 1px solid var(--glass-border);
+      border-radius: 14px;
+      padding: 35px 40px;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.7);
+    }
+
+    .subpage-nav {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 24px;
+      border-bottom: 1px solid var(--glass-border);
+      padding-bottom: 15px;
+    }
+
+    .subpage-hero-img {
+      width: 100%;
+      height: 380px;
+      border-radius: 10px;
+      overflow: hidden;
+      background: #091728;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      margin-bottom: 25px;
+      cursor: pointer;
+    }
+
+    .subpage-hero-img img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    .subpage-title {
+      font-family: 'Cinzel', serif;
+      font-size: 2.1rem;
+      color: #ffffff;
+      margin-bottom: 8px;
+    }
+
+    .subpage-tech {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.82rem;
+      color: var(--accent-color);
+      margin-bottom: 20px;
+      text-shadow: 0 0 10px var(--accent-glow);
+    }
+
+    .subpage-body {
+      font-size: 0.95rem;
+      line-height: 1.7;
+      color: #cbd5e1;
+      margin-bottom: 30px;
+    }
+
+    /* Venue Cards */
+    .venues-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
+      gap: 24px;
+      margin: 30px 0;
+    }
+
+    .venue-card-interactive {
+      background: rgba(3, 10, 20, 0.75);
+      border: 1px solid var(--glass-border);
+      border-radius: 10px;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      cursor: pointer;
+      transition: transform 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+      will-change: transform;
+    }
+
+    .venue-card-interactive:hover {
+      border-color: var(--accent-color);
+      transform: translateY(-4px);
+      box-shadow: 0 12px 30px rgba(0, 0, 0, 0.6), 0 0 20px var(--accent-glow);
+    }
+
+    .venue-img-holder {
+      width: 100%;
+      height: 220px;
+      border-radius: 6px;
+      overflow: hidden;
+      margin-bottom: 16px;
+      background: #081424;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .venue-img-holder img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    .venue-card-interactive h3 {
+      font-family: 'Cinzel', serif;
+      font-size: 1.25rem;
+      color: #ffffff;
+      margin-bottom: 4px;
+    }
+
+    .venue-subtitle {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.75rem;
+      color: var(--accent-color);
+      margin-bottom: 12px;
+      text-transform: uppercase;
+    }
+
+    .venue-card-interactive p {
+      font-size: 0.88rem;
+      color: #94a3b8;
+      line-height: 1.5;
+      margin-bottom: 16px;
+      flex-grow: 1;
+    }
+
+    .click-indicator {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.75rem;
+      color: var(--accent-color);
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    /* 167 Photo Gallery Grid.
+       Tiles are absolutely positioned (not CSS Grid) inside a "sizer"
+       div whose height matches the full virtual content height. This
+       lets scrolling just reposition/re-source a small recycled pool
+       of nodes via transform, instead of forcing the browser to
+       recompute a whole CSS Grid layout on every change. */
+    .gallery-grid {
+      position: relative;
+      margin: 20px 0 35px 0;
+      max-height: 700px;
+      overflow-y: auto;
+      overflow-x: hidden;
+      padding-right: 8px;
+    }
+
+    .gallery-grid::-webkit-scrollbar {
+      width: 6px;
+    }
+    .gallery-grid::-webkit-scrollbar-thumb {
+      background: var(--glass-border);
+      border-radius: 10px;
+    }
+
+    .gallery-inner {
+      position: relative;
+      width: 100%;
+    }
+
+    .gallery-item {
+      position: absolute;
+      top: 0;
+      left: 0;
+      height: 130px;
+      border-radius: 6px;
+      overflow: hidden;
+      border: 1px solid var(--glass-border);
+      background: #081424;
+      cursor: pointer;
+      will-change: transform;
+    }
+
+    .gallery-item img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      transition: transform 0.18s ease;
+      will-change: transform;
+    }
+
+    .gallery-item:hover img {
+      transform: scale(1.08);
+    }
+
+    /* Interactive Lightbox */
+    .lightbox {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: rgba(2, 6, 13, 0.92);
+      backdrop-filter: blur(14px);
+      z-index: 300;
+      display: none;
+      justify-content: center;
+      align-items: center;
+      padding: 40px;
+    }
+
+    .lightbox.active {
+      display: flex;
+    }
+
+    .lightbox-content {
+      position: relative;
+      max-width: 90vw;
+      max-height: 85vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .lightbox img {
+      max-width: 100%;
+      max-height: 75vh;
+      border-radius: 8px;
+      border: 1px solid var(--glass-border);
+      box-shadow: 0 0 50px rgba(0, 0, 0, 0.95);
+      object-fit: contain;
+    }
+
+    .lightbox-counter {
+      margin-top: 15px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.85rem;
+      color: var(--accent-color);
+      letter-spacing: 1px;
+    }
+
+    .lightbox-close {
+      position: absolute;
+      top: 25px;
+      right: 35px;
+      font-size: 2rem;
+      color: #94a3b8;
+      background: none;
+      border: none;
+      cursor: pointer;
+      line-height: 1;
+      transition: color 0.2s;
+    }
+
+    .lightbox-close:hover {
+      color: var(--accent-color);
+    }
+
+    .lightbox-btn {
+      position: absolute;
+      top: 50%;
+      transform: translateY(-50%);
+      background: rgba(6, 17, 33, 0.75);
+      border: 1px solid var(--glass-border);
+      color: #fff;
+      font-size: 1.8rem;
+      padding: 12px 18px;
+      border-radius: 50%;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .lightbox-btn:hover {
+      border-color: var(--accent-color);
+      color: var(--accent-color);
+    }
+
+    .lightbox-prev { left: 30px; }
+    .lightbox-next { right: 30px; }
+
+    .specs-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 15px;
+      background: rgba(2, 6, 13, 0.6);
+      padding: 20px;
+      border-radius: 8px;
+      border: 1px solid var(--glass-border);
+      margin-bottom: 30px;
+    }
+
+    .spec-item {
+      min-width: 0;
+    }
+
+    .spec-item h4 {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      color: var(--accent-color);
+      margin-bottom: 4px;
+    }
+
+    .spec-item p {
+      font-size: 0.88rem;
+      color: #ffffff;
+      font-weight: 500;
+      overflow-wrap: break-word;
+      word-break: break-word;
+    }
+
+    /* Footer */
+    footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.75rem;
+      color: #94a3b8;
+      padding: 30px 0 25px 0;
+      position: relative;
+      z-index: 5;
+    }
+
+    @media (max-width: 900px) {
+      .hero-center h2 { font-size: 2rem; }
+      .app-layout { padding: 24px 24px 0 24px; }
+      .subpage-container { padding: 25px; }
+      .venues-grid { grid-template-columns: 1fr; }
+      .subpage-hero-img { height: 220px; }
+      .lightbox-prev { left: 10px; }
+      .lightbox-next { right: 10px; }
+      footer { flex-direction: column; gap: 8px; text-align: center; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- SIMULATION CANVAS -->
+  <canvas id="feedback-canvas"></canvas>
+  <div class="vignette"></div>
+  <div id="aurora-strip-bottom" class="aurora-strip aurora-strip-bottom">
+    <svg class="wave-layer wave-layer-2" viewBox="0 0 2400 320" preserveAspectRatio="none">
+      <path d="M0,200 C200,150 400,250 600,200 C800,150 1000,250 1200,200 C1400,150 1600,250 1800,200 C2000,150 2200,250 2400,200 L2400,320 L0,320 Z"/>
+    </svg>
+    <svg class="wave-layer wave-layer-1" viewBox="0 0 2400 320" preserveAspectRatio="none">
+      <path d="M0,170 C75,130 225,210 300,170 C375,130 525,210 600,170 C675,130 825,210 900,170 C975,130 1125,210 1200,170 C1275,130 1425,210 1500,170 C1575,130 1725,210 1800,170 C1875,130 2025,210 2100,170 C2175,130 2325,210 2400,170 L2400,320 L0,320 Z"/>
+    </svg>
+  </div>
+
+  <div id="aurora-strip-top" class="aurora-strip aurora-strip-top">
+    <div class="aurora-flip">
+      <svg class="wave-layer wave-layer-2" viewBox="0 0 2400 320" preserveAspectRatio="none">
+        <path d="M0,200 C200,150 400,250 600,200 C800,150 1000,250 1200,200 C1400,150 1600,250 1800,200 C2000,150 2200,250 2400,200 L2400,320 L0,320 Z"/>
+      </svg>
+      <svg class="wave-layer wave-layer-1" viewBox="0 0 2400 320" preserveAspectRatio="none">
+        <path d="M0,170 C75,130 225,210 300,170 C375,130 525,210 600,170 C675,130 825,210 900,170 C975,130 1125,210 1200,170 C1275,130 1425,210 1500,170 C1575,130 1725,210 1800,170 C1875,130 2025,210 2100,170 C2175,130 2325,210 2400,170 L2400,320 L0,320 Z"/>
+      </svg>
+    </div>
+  </div>
+
+  <!-- APPLICATION SHELL -->
+  <div class="app-layout">
+    
+    <header>
+      <div class="brand" onclick="navigateTo('home')">
+        <h1>Christopher Escobar</h1>
+        <p id="brand-role">TouchDesigner Artist</p>
+      </div>
+      <div class="nav-actions">
+        <button class="btn btn-subtle" onclick="navigateTo('home')">Works Index</button>
+        <button id="header-inquire" class="btn" onclick="navigateTo('contact')">Inquire</button>
+      </div>
+    </header>
+
+    <!-- ================= VIEW 0: HOME INDEX ================= -->
+    <div id="view-home" class="view-page active">
+      <main class="hero-center">
+        <h2>TouchDesigner Projects</h2>
+        <p>
+          I'm a student at Stony Brook University building real-time particle systems and surreal, AI-driven visuals in TouchDesigner. My work draws on depth cameras, LiDAR, and Arduino-based sensors to translate physical space and movement into responsive light, projected back into the room through custom projection-mapping setups.
+        </p>
+      </main>
+
+      <!-- Populated from works.json at load time (see loadWorks() below) -->
+      <section class="works-shelf"></section>
+    </div>
+
+    <!-- ================= VIEW 1: PERFORMANCES HUB ================= -->
+    <div id="view-performances" class="view-page">
+      <div class="subpage-container">
+        <div class="subpage-nav">
+          <button class="btn btn-subtle" onclick="navigateTo('home')">&larr; Back to Works</button>
+          <span class="tag">Performances Hub</span>
+        </div>
+        
+        <h2 class="subpage-title">Live Performances</h2>
+        <div class="subpage-tech">Real-Time Visual Scenography / TouchDesigner / New York, NY</div>
+        <p class="subpage-body">
+          Select a venue below to explore specific visual pieces, stage setups, and multi-camera documentation from live performances across New York.
+        </p>
+
+        <!-- CLICKABLE VENUE CARDS (DSC_2480.JPG Preview) -->
+        <div class="venues-grid">
+          <div class="venue-card-interactive" onclick="navigateTo('mark-morris')">
+            <div class="venue-img-holder">
+              <img src="DSC_2480.JPG" alt="Mark Morris Dance Center" onerror="handlePreviewError(this)">
+            </div>
+            <h3>Mark Morris Dance Center</h3>
+            <div class="venue-subtitle">James and Martha Duffy Performance Space | Brooklyn, NY</div>
+            <p>
+              Featured production: <strong>Coriolanus (Fall 2024)</strong>. Real-time projection tracking and dynamic fluid wave feedback accompanying contemporary choreography.
+            </p>
+            <div class="click-indicator">Explore 167 Production Images &rarr;</div>
+          </div>
+
+          <div class="venue-card-interactive" onclick="navigateTo('ideal-glass')">
+            <div class="venue-img-holder">
+              <img src="performance_atelier.jpg" alt="Ideal Glass Studios" onerror="renderPlaceholder(this, 'Ideal Glass Studios - ATELIER')">
+            </div>
+            <h3>Ideal Glass Studios</h3>
+            <div class="venue-subtitle">ATELIER Room | Greenwich Village, NY</div>
+            <p>
+              Immersive spatial audiovisual performance transforming physical walls into responsive architectural light ecosystems.
+            </p>
+            <div class="click-indicator">Explore Performances &rarr;</div>
+          </div>
+        </div>
+
+        <div class="specs-grid">
+          <div class="spec-item"><h4>Frame Rate</h4><p>60 FPS Native 4K</p></div>
+          <div class="spec-item"><h4>Core Stack</h4><p>TouchDesigner / GLSL / CHOPs</p></div>
+          <div class="spec-item"><h4>Integration</h4><p>Live Audio / Stage Tracking</p></div>
+        </div>
+
+        <a href="mailto:christopher.escobar@stonybrook.edu?subject=Performance Booking Inquiry" class="btn">Inquire for Performance & Visual Bookings</a>
+      </div>
+    </div>
+
+    <!-- ================= VIEW 1A: MARK MORRIS - CORIOLANUS FALL 2024 ================= -->
+    <div id="view-mark-morris" class="view-page">
+      <div class="subpage-container">
+        <div class="subpage-nav">
+          <button class="btn btn-subtle" onclick="navigateTo('performances')">&larr; Back to Performances Hub</button>
+          <span class="tag">Production: Coriolanus</span>
+        </div>
+        
+        <!-- Hero Banner Preview (DSC_2480.JPG) -->
+        <div class="subpage-hero-img" onclick="openHeroLightbox()">
+          <img id="coriolanus-hero-img" src="DSC_2480.JPG" alt="Coriolanus Fall 2024 Hero" onerror="handlePreviewError(this)">
+        </div>
+
+        <h2 class="subpage-title">Coriolanus (Fall 2024)</h2>
+        <div class="subpage-tech">Mark Morris Dance Center / James and Martha Duffy Performance Space / Brooklyn, NY</div>
+        <p class="subpage-body">
+          Site-specific real-time scenography engineered for the production of <em>Coriolanus</em> in Fall 2024. Dynamic particle wave velocity vectors and recursive GLSL feedback were projected across the Duffy cyclorama wall, reacting dynamically to the performer's kinetic pacing, shadow silhouette, and ground contact.
+        </p>
+
+        <!-- DYNAMIC 167 PHOTO GALLERY -->
+        <div class="gallery-header">
+          <h3>Production Gallery (167 Stills)</h3>
+          <span>Click any image to enlarge</span>
+        </div>
+
+        <div id="coriolanus-gallery" class="gallery-grid"><div id="coriolanus-gallery-inner" class="gallery-inner"></div></div>
+
+        <div class="specs-grid">
+          <div class="spec-item"><h4>Production Season</h4><p>Fall 2024</p></div>
+          <div class="spec-item"><h4>Total Archive</h4><p>167 Production Stills</p></div>
+          <div class="spec-item"><h4>Interactive System</h4><p>Optical Flow & Shadow Tracking</p></div>
+        </div>
+
+        <div class="btn-row">
+          <button class="btn" onclick="navigateTo('performances')">View Other Venues</button>
+          <a href="mailto:christopher.escobar@stonybrook.edu?subject=Coriolanus Fall 2024 Work Inquiry" class="btn btn-subtle">Request Full Production Archive</a>
+        </div>
+      </div>
+    </div>
+
+    <!-- ================= VIEW 1B: IDEAL GLASS ================= -->
+    <div id="view-ideal-glass" class="view-page">
+      <div class="subpage-container">
+        <div class="subpage-nav">
+          <button class="btn btn-subtle" onclick="navigateTo('performances')">&larr; Back to Performances Hub</button>
+          <span class="tag">Venue: Ideal Glass Studios</span>
+        </div>
+        
+        <div class="subpage-hero-img">
+          <img src="performance_atelier.jpg" alt="Ideal Glass Studios ATELIER Room" onerror="renderPlaceholder(this, 'Ideal Glass Studios ATELIER')">
+        </div>
+
+        <h2 class="subpage-title">ATELIER Room Performance</h2>
+        <div class="subpage-tech">Ideal Glass Studios / Greenwich Village, NY / Immersive Spatial Mapping</div>
+        <p class="subpage-body">
+          An immersive multi-wall installation performance inside the historic ATELIER Room. Procedural generative shaders and audio frequency analyzers turned the physical architectural structure into a responsive light ecosystem.
+        </p>
+
+        <div class="specs-grid">
+          <div class="spec-item"><h4>Spatial Setup</h4><p>3-Wall Immersive Projection</p></div>
+          <div class="spec-item"><h4>Live Controls</h4><p>MIDI / TouchOSC Parameter Rig</p></div>
+          <div class="spec-item"><h4>Frame Latency</h4><p>&lt; 16ms Native Response</p></div>
+        </div>
+
+        <div class="btn-row">
+          <button class="btn" onclick="navigateTo('performances')">View Other Venues</button>
+          <a href="mailto:christopher.escobar@stonybrook.edu?subject=Ideal Glass Work Inquiry" class="btn btn-subtle">Request Video Archive</a>
+        </div>
+      </div>
+    </div>
+
+    <!-- ================= VIEW 2: INSTALLATIONS ================= -->
+    <div id="view-work-2" class="view-page">
+      <div class="subpage-container">
+        <div class="subpage-nav">
+          <button class="btn btn-subtle" onclick="navigateTo('home')">&larr; Back to Works</button>
+          <span class="tag">Case Study</span>
+        </div>
+        <div class="subpage-hero-img">
+          <img src="project2.jpg" alt="Installations" onerror="renderPlaceholder(this, 'Installations')">
+        </div>
+        <h2 class="subpage-title">Installations</h2>
+        <div class="subpage-tech">Kinect Azure / Point Clouds / SOP Geometry / Optical Flow</div>
+        <p class="subpage-body">
+          Presented at Ideal Glass Studios during my internship with Art House NYC, this interactive installation used Kinect Azure depth cameras to track audience presence in real time — translating visitor movement into responsive point cloud visuals throughout the space.
+        </p>
+        <div class="specs-grid">
+          <div class="spec-item"><h4>Sensor</h4><p>Azure Kinect Depth & IR</p></div>
+          <div class="spec-item"><h4>Point Count</h4><p>500,000 GPU Particles</p></div>
+          <div class="spec-item"><h4>Tracking</h4><p>Optical Flow + Skeleton</p></div>
+        </div>
+        <a href="mailto:christopher.escobar@stonybrook.edu?subject=Inquiry: Installations" class="btn">Inquire About Exhibition / Licensing</a>
+      </div>
+    </div>
+
+    <!-- ================= CONTACT ================= -->
+    <div id="view-contact" class="view-page">
+      <div class="subpage-container">
+        <div class="subpage-nav">
+          <button class="btn btn-subtle" onclick="navigateTo('home')">&larr; Back to Works</button>
+          <span class="tag">Get In Touch</span>
+        </div>
+        <h2 class="subpage-title">Contact</h2>
+        <p class="subpage-body">
+          Have a question about a project, a booking, or a potential collaboration?
+          Reach out directly — I read every message and try to respond within a few days.
+        </p>
+        <div class="specs-grid">
+          <div class="spec-item"><h4>Email</h4><p>christopher.escobar@stonybrook.edu</p></div>
+          <div class="spec-item"><h4>Based At</h4><p>New York</p></div>
+          <div class="spec-item"><h4>Open To</h4><p>Performances / Installations / Collabs</p></div>
+        </div>
+        <div class="btn-row">
+          <a href="mailto:christopher.escobar@stonybrook.edu?subject=General%20Inquiry" class="btn">Email Me</a>
+          <button class="btn btn-subtle" id="copy-email-btn" onclick="copyEmailAddress()">Copy Email Address</button>
+        </div>
+      </div>
+    </div>
+
+    <footer>
+      <span>&copy; 2026 Christopher Escobar. All Rights Reserved.</span>
+      <span>Interactivity: Dynamic fluid vortex & UI Color Sync</span>
+    </footer>
+
+  </div>
+
+  <!-- INTERACTIVE LIGHTBOX VIEWER -->
+  <div id="lightbox" class="lightbox">
+    <button class="lightbox-close" onclick="closeLightbox()">&times;</button>
+    <button class="lightbox-btn lightbox-prev" onclick="prevLightbox(event)">&larr;</button>
+    <div class="lightbox-content">
+      <img id="lightbox-img" src="" alt="Coriolanus Still">
+      <div id="lightbox-counter" class="lightbox-counter">Image 1 / 167</div>
+    </div>
+    <button class="lightbox-btn lightbox-next" onclick="nextLightbox(event)">&rarr;</button>
+  </div>
+
+  <!-- THEME PALETTES & ROUTING SCRIPT -->
+  <script>
+    const THEMES = {
+      'home': {
+        accentHex: '#4cc9f0',
+        accentGlow: 'rgba(76, 201, 240, 0.45)',
+        accentSoft: 'rgba(76, 201, 240, 0.15)',
+        glassBorder: 'rgba(76, 201, 240, 0.25)',
+        glassBg: 'rgba(6, 17, 33, 0.75)',
+        btnBg: 'rgba(10, 30, 55, 0.65)',
+        baseHue: 205,
+        hueSpread: 35,
+        baseSat: 90,
+        baseLight: 65,
+        vortexHue: 158,
+        vortexSat: 95,
+        vortexLight: 70,
+        auroraColors: [
+          'rgba(56, 239, 125, 0.12)',
+          'rgba(76, 201, 240, 0.14)',
+          'rgba(17, 219, 150, 0.18)'
+        ]
+      },
+      'performances': {
+        accentHex: '#00f5d4',
+        accentGlow: 'rgba(0, 245, 212, 0.45)',
+        accentSoft: 'rgba(0, 245, 212, 0.15)',
+        glassBorder: 'rgba(0, 245, 212, 0.25)',
+        glassBg: 'rgba(4, 22, 28, 0.75)',
+        btnBg: 'rgba(6, 45, 55, 0.65)',
+        baseHue: 185,
+        hueSpread: 25,
+        baseSat: 95,
+        baseLight: 60,
+        vortexHue: 140,
+        vortexSat: 100,
+        vortexLight: 70,
+        auroraColors: [
+          'rgba(0, 245, 212, 0.14)',
+          'rgba(123, 237, 159, 0.12)',
+          'rgba(0, 180, 216, 0.18)'
+        ]
+      },
+      'mark-morris': {
+        accentHex: '#00f5d4',
+        accentGlow: 'rgba(0, 245, 212, 0.45)',
+        accentSoft: 'rgba(0, 245, 212, 0.15)',
+        glassBorder: 'rgba(0, 245, 212, 0.25)',
+        glassBg: 'rgba(4, 22, 28, 0.75)',
+        btnBg: 'rgba(6, 45, 55, 0.65)',
+        baseHue: 180,
+        hueSpread: 30,
+        baseSat: 95,
+        baseLight: 62,
+        vortexHue: 135,
+        vortexSat: 100,
+        vortexLight: 72,
+        auroraColors: [
+          'rgba(0, 245, 212, 0.16)',
+          'rgba(76, 201, 240, 0.14)',
+          'rgba(17, 219, 150, 0.2)'
+        ]
+      },
+      'ideal-glass': {
+        accentHex: '#00f5d4',
+        accentGlow: 'rgba(0, 245, 212, 0.45)',
+        accentSoft: 'rgba(0, 245, 212, 0.15)',
+        glassBorder: 'rgba(0, 245, 212, 0.25)',
+        glassBg: 'rgba(4, 22, 28, 0.75)',
+        btnBg: 'rgba(6, 45, 55, 0.65)',
+        baseHue: 190,
+        hueSpread: 25,
+        baseSat: 92,
+        baseLight: 58,
+        vortexHue: 145,
+        vortexSat: 100,
+        vortexLight: 70,
+        auroraColors: [
+          'rgba(0, 245, 212, 0.14)',
+          'rgba(123, 237, 159, 0.12)',
+          'rgba(0, 180, 216, 0.18)'
+        ]
+      },
+      'work-2': {
+        accentHex: '#c77dff',
+        accentGlow: 'rgba(199, 125, 255, 0.45)',
+        accentSoft: 'rgba(199, 125, 255, 0.15)',
+        glassBorder: 'rgba(199, 125, 255, 0.25)',
+        glassBg: 'rgba(18, 9, 33, 0.75)',
+        btnBg: 'rgba(38, 14, 65, 0.65)',
+        baseHue: 275,
+        hueSpread: 40,
+        baseSat: 85,
+        baseLight: 65,
+        vortexHue: 320,
+        vortexSat: 95,
+        vortexLight: 75,
+        auroraColors: [
+          'rgba(186, 85, 211, 0.16)',
+          'rgba(138, 43, 226, 0.14)',
+          'rgba(255, 0, 128, 0.16)'
+        ]
+      },
+      'contact': {
+        accentHex: '#ffb703',
+        accentGlow: 'rgba(255, 183, 3, 0.45)',
+        accentSoft: 'rgba(255, 183, 3, 0.15)',
+        glassBorder: 'rgba(255, 183, 3, 0.25)',
+        glassBg: 'rgba(28, 18, 4, 0.75)',
+        btnBg: 'rgba(55, 35, 8, 0.65)',
+        baseHue: 38,
+        hueSpread: 25,
+        baseSat: 90,
+        baseLight: 62,
+        vortexHue: 20,
+        vortexSat: 95,
+        vortexLight: 70,
+        auroraColors: [
+          'rgba(255, 183, 3, 0.16)',
+          'rgba(251, 133, 0, 0.14)',
+          'rgba(255, 214, 10, 0.14)'
+        ]
+      }
+    };
+
+    let currentThemeKey = 'home';
+    const TOTAL_CORIOLANUS_IMAGES = 167;
+    let currentLightboxIndex = 1;
+
+    // Fallback handler specifically for the DSC_2480 preview image
+    function handlePreviewError(img) {
+      const attempts = [
+        'DSC_2480.JPG',
+        'DSC_2480.jpg',
+        'DSC_2480.jpeg',
+        'Coriolanus_Images/DSC_2480.JPG',
+        'Coriolanus_Images/DSC_2480.jpg'
+      ];
+      let currentAttempt = img.dataset.attempt ? parseInt(img.dataset.attempt, 10) : 0;
+      if (currentAttempt < attempts.length) {
+        img.dataset.attempt = currentAttempt + 1;
+        img.src = attempts[currentAttempt];
+      } else {
+        renderPlaceholder(img, 'DSC_2480');
+      }
+    }
+
+    // Fallback handler for gallery items
+    function handleCoriolanusError(img, index) {
+      const attempts = [
+        `Coriolanus_Images/Coriolanus (${index}).jpg`,
+        `Coriolanus_Images/Coriolanus(${index}).jpg`,
+        `Coriolanus_Images/Coriolanus (${index}).JPG`,
+        `Coriolanus_Images/Coriolanus(${index}).JPG`,
+        `Coriolanus_Images/Coriolanus (${index}).jpeg`,
+        `Coriolanus_Images/Coriolanus(${index}).jpeg`,
+        `Coriolanus_Images/Coriolanus (${index}).png`,
+        `Coriolanus_Images/Coriolanus(${index}).png`
+      ];
+
+      let currentAttempt = img.dataset.attempt ? parseInt(img.dataset.attempt, 10) : 0;
+      if (currentAttempt < attempts.length) {
+        img.dataset.attempt = currentAttempt + 1;
+        img.src = attempts[currentAttempt];
+      } else {
+        renderPlaceholder(img, `#${index}`);
+      }
+    }
+
+    // ============ VIRTUALIZED GALLERY (recycled node pool) ============
+    // A fixed pool of DOM nodes - sized to just cover the viewport plus
+    // a small buffer - is created ONCE. Scrolling never creates or
+    // destroys elements; it only repositions (via transform, which is
+    // compositor-cheap) and re-sources whichever pool nodes now need to
+    // represent a different image index. This avoids both the DOM
+    // churn and the full-container relayout that come with inserting/
+    // removing real grid children on every scroll frame.
+    const GALLERY_ROW_HEIGHT = 142; // 130px tile + 12px gap
+    const GALLERY_MIN_ITEM_WIDTH = 180;
+    const GALLERY_GAP = 12;
+    const GALLERY_BUFFER_ROWS = 2;
+    const MAX_CONCURRENT_IMAGE_LOADS = 4;
+
+    let galleryContainer = null;
+    let galleryInner = null;
+    let galleryColumns = 1;
+    let galleryItemWidth = 180;
+    let galleryPool = []; // { el, img, assignedIndex }
+    const loadedGalleryIndices = new Set(); // already-fetched, safe to reuse from cache
+    let activeImageLoads = 0;
+    const imageLoadQueue = [];
+
+    function processImageLoadQueue() {
+      while (activeImageLoads < MAX_CONCURRENT_IMAGE_LOADS && imageLoadQueue.length) {
+        const img = imageLoadQueue.shift();
+        if (!img.dataset.src) continue;
+        activeImageLoads++;
+        const src = img.dataset.src;
+        const index = Number(img.dataset.index);
+        delete img.dataset.src;
+        img.src = src;
+        const done = () => {
+          loadedGalleryIndices.add(index);
+          activeImageLoads--;
+          processImageLoadQueue();
+        };
+        img.addEventListener('load', done, { once: true });
+        img.addEventListener('error', done, { once: true });
+      }
+    }
+
+    function measureGalleryColumns() {
+      if (!galleryContainer) return 1;
+      const w = galleryContainer.clientWidth;
+      const cols = Math.max(1, Math.floor((w + GALLERY_GAP) / (GALLERY_MIN_ITEM_WIDTH + GALLERY_GAP)));
+      galleryItemWidth = (w - GALLERY_GAP * (cols - 1)) / cols;
+      return cols;
+    }
+
+    function buildGalleryPool() {
+      // Enough rows to cover the tallest possible viewport (capped by
+      // the CSS max-height) plus buffer on both sides.
+      const maxViewportRows = Math.ceil(700 / GALLERY_ROW_HEIGHT) + 1;
+      const poolRows = maxViewportRows + GALLERY_BUFFER_ROWS * 2;
+      const poolSize = poolRows * galleryColumns;
+
+      galleryInner.innerHTML = '';
+      galleryPool = [];
+
+      for (let p = 0; p < poolSize; p++) {
+        const item = document.createElement('div');
+        item.className = 'gallery-item';
+
+        const img = document.createElement('img');
+        img.decoding = 'async';
+
+        item.appendChild(img);
+        galleryInner.appendChild(item);
+
+        galleryPool.push({ el: item, img: img, assignedIndex: -1 });
+      }
+    }
+
+    function positionPoolNode(node, index) {
+      const row = Math.floor((index - 1) / galleryColumns);
+      const col = (index - 1) % galleryColumns;
+      const x = col * (galleryItemWidth + GALLERY_GAP);
+      const y = row * GALLERY_ROW_HEIGHT;
+      node.el.style.width = galleryItemWidth + 'px';
+      node.el.style.transform = `translate(${x}px, ${y}px)`;
+    }
+
+    function assignPoolNode(node, index) {
+      node.assignedIndex = index;
+      node.el.setAttribute('onclick', `openLightboxByIndex(${index})`);
+
+      const img = node.img;
+      img.alt = `Coriolanus Still ${index}`;
+      img.dataset.index = String(index);
+      delete img.dataset.attempt;
+      img.onerror = function() {
+        handleCoriolanusError(this, index);
+      };
+
+      const src = `Coriolanus_Images/Coriolanus (${index}).jpg`;
+      if (loadedGalleryIndices.has(index)) {
+        delete img.dataset.src;
+        img.src = src; // already fetched this session - cache serves it instantly
+      } else {
+        img.removeAttribute('src');
+        img.dataset.src = src;
+        imageLoadQueue.push(img);
+      }
+
+      positionPoolNode(node, index);
+    }
+
+    function renderGalleryWindow() {
+      if (!galleryContainer || !galleryPool.length) return;
+
+      const scrollTop = galleryContainer.scrollTop;
+      const viewHeight = galleryContainer.clientHeight;
+      const totalRows = Math.ceil(TOTAL_CORIOLANUS_IMAGES / galleryColumns);
+
+      const firstVisibleRow = Math.floor(scrollTop / GALLERY_ROW_HEIGHT);
+      const lastVisibleRow = Math.ceil((scrollTop + viewHeight) / GALLERY_ROW_HEIGHT);
+
+      const startRow = Math.max(0, firstVisibleRow - GALLERY_BUFFER_ROWS);
+      const endRow = Math.min(totalRows, lastVisibleRow + GALLERY_BUFFER_ROWS);
+
+      const startIndex = startRow * galleryColumns + 1;
+      const endIndex = Math.min(TOTAL_CORIOLANUS_IMAGES, endRow * galleryColumns);
+      const neededIndices = [];
+      for (let i = startIndex; i <= endIndex; i++) neededIndices.push(i);
+
+      const currentlyAssigned = new Set(galleryPool.map(n => n.assignedIndex));
+      const stillNeeded = new Set(neededIndices);
+
+      // Free pool nodes no longer needed, keep track of which ones.
+      const freeNodes = [];
+      for (const node of galleryPool) {
+        if (node.assignedIndex !== -1 && !stillNeeded.has(node.assignedIndex)) {
+          node.assignedIndex = -1;
+          node.el.style.display = 'none';
+        }
+        if (node.assignedIndex === -1) freeNodes.push(node);
+      }
+
+      // Assign a free node to each needed index that isn't already covered.
+      let freePtr = 0;
+      for (const index of neededIndices) {
+        if (currentlyAssigned.has(index)) continue; // already showing this one
+        const node = freeNodes[freePtr++];
+        if (!node) break; // pool undersized for this viewport - shouldn't normally happen
+        node.el.style.display = 'block';
+        assignPoolNode(node, index);
+      }
+
+      galleryInner.style.height = (totalRows * GALLERY_ROW_HEIGHT - GALLERY_GAP) + 'px';
+      processImageLoadQueue();
+    }
+
+    let galleryRenderQueued = false;
+    function queueGalleryRender() {
+      if (galleryRenderQueued) return;
+      galleryRenderQueued = true;
+      requestAnimationFrame(() => {
+        galleryRenderQueued = false;
+        renderGalleryWindow();
+      });
+    }
+
+    function buildCoriolanusGallery() {
+      const container = document.getElementById('coriolanus-gallery');
+      const inner = document.getElementById('coriolanus-gallery-inner');
+      if (!container || !inner) return;
+
+      galleryContainer = container;
+      galleryInner = inner;
+
+      galleryColumns = measureGalleryColumns();
+      buildGalleryPool();
+      renderGalleryWindow();
+
+      // The very first call above measures clientHeight before the
+      // subpage is visible (display:none reports 0 no matter how many
+      // frames pass) - re-measure once it's actually shown. See also
+      // the re-measure call in navigateTo() for when this page is
+      // opened after initial load.
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          const cols = measureGalleryColumns();
+          if (cols !== galleryColumns) {
+            galleryColumns = cols;
+            buildGalleryPool();
+          }
+          renderGalleryWindow();
+        });
+      });
+
+      container.addEventListener('scroll', queueGalleryRender, { passive: true });
+      window.addEventListener('resize', () => {
+        const newColumns = measureGalleryColumns();
+        if (newColumns !== galleryColumns) {
+          galleryColumns = newColumns;
+          buildGalleryPool();
+        }
+        renderGalleryWindow();
+      }, { passive: true });
+    }
+
+    // Lightbox Controls
+    function openLightboxByIndex(index) {
+      currentLightboxIndex = index;
+      const lb = document.getElementById('lightbox');
+      const img = document.getElementById('lightbox-img');
+      const counter = document.getElementById('lightbox-counter');
+
+      img.dataset.attempt = "0";
+      img.src = `Coriolanus_Images/Coriolanus (${currentLightboxIndex}).jpg`;
+      img.onerror = function() {
+        handleCoriolanusError(this, currentLightboxIndex);
+      };
+
+      counter.innerText = `Image ${currentLightboxIndex} / ${TOTAL_CORIOLANUS_IMAGES}`;
+      lb.classList.add('active');
+    }
+
+    function openHeroLightbox() {
+      const lb = document.getElementById('lightbox');
+      const img = document.getElementById('lightbox-img');
+      const counter = document.getElementById('lightbox-counter');
+
+      img.dataset.attempt = "0";
+      img.src = 'DSC_2480.JPG';
+      img.onerror = function() {
+        handlePreviewError(this);
+      };
+
+      counter.innerText = 'Featured Preview: DSC_2480';
+      lb.classList.add('active');
+    }
+
+    function closeLightbox() {
+      document.getElementById('lightbox').classList.remove('active');
+    }
+
+    function nextLightbox(e) {
+      if (e) e.stopPropagation();
+      currentLightboxIndex++;
+      if (currentLightboxIndex > TOTAL_CORIOLANUS_IMAGES) currentLightboxIndex = 1;
+      openLightboxByIndex(currentLightboxIndex);
+    }
+
+    function prevLightbox(e) {
+      if (e) e.stopPropagation();
+      currentLightboxIndex--;
+      if (currentLightboxIndex < 1) currentLightboxIndex = TOTAL_CORIOLANUS_IMAGES;
+      openLightboxByIndex(currentLightboxIndex);
+    }
+
+    window.addEventListener('keydown', (e) => {
+      const lb = document.getElementById('lightbox');
+      if (!lb.classList.contains('active')) return;
+
+      if (e.key === 'ArrowRight') nextLightbox();
+      if (e.key === 'ArrowLeft') prevLightbox();
+      if (e.key === 'Escape') closeLightbox();
+    });
+
+    // Contact page: copies the email address to the clipboard as a
+    // fallback for when mailto: links can't open (no default mail
+    // client configured).
+    function copyEmailAddress() {
+      const email = 'christopher.escobar@stonybrook.edu';
+      const btn = document.getElementById('copy-email-btn');
+      const originalText = btn.textContent;
+
+      function showCopied() {
+        btn.textContent = 'Copied!';
+        setTimeout(() => { btn.textContent = originalText; }, 2000);
+      }
+
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(email).then(showCopied).catch(() => {
+          fallbackCopy(email, showCopied);
+        });
+      } else {
+        fallbackCopy(email, showCopied);
+      }
+    }
+
+    function fallbackCopy(text, onSuccess) {
+      const temp = document.createElement('textarea');
+      temp.value = text;
+      temp.style.position = 'fixed';
+      temp.style.opacity = '0';
+      document.body.appendChild(temp);
+      temp.select();
+      try {
+        document.execCommand('copy');
+        onSuccess();
+      } catch (e) {
+        // Silently ignore - the email address is still visible on the page
+      }
+      document.body.removeChild(temp);
+    }
+
+    // Subpage Navigation Router
+    function navigateTo(viewId) {
+      document.querySelectorAll('.view-page').forEach(page => {
+        page.classList.remove('active');
+      });
+
+      const target = document.getElementById('view-' + viewId);
+      if (target) {
+        target.classList.add('active');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+
+      currentThemeKey = THEMES[viewId] ? viewId : 'home';
+      applyTheme(currentThemeKey);
+
+      // The gallery is built once at page load, while its subpage is
+      // still hidden (clientHeight/clientWidth read 0 for display:none
+      // elements, no matter how many frames pass). Re-measure now that
+      // the page is actually visible and has real layout dimensions -
+      // and rebuild the node pool too, since it was originally sized
+      // for the (wrong) hidden-page column count.
+      if (viewId === 'mark-morris' && typeof measureGalleryColumns === 'function') {
+        requestAnimationFrame(() => {
+          const cols = measureGalleryColumns();
+          if (cols !== galleryColumns) {
+            galleryColumns = cols;
+            buildGalleryPool();
+          }
+          renderGalleryWindow();
+        });
+      }
+
+      // Only the home page runs the full particle simulation - subpages
+      // (which host the heavy image gallery) get the lightweight strip
+      // instead, and the canvas simulation is stopped outright to free
+      // the main thread for scrolling.
+      const isHome = viewId === 'home';
+      const canvas = document.getElementById('feedback-canvas');
+      const stripBottom = document.getElementById('aurora-strip-bottom');
+      const stripTop = document.getElementById('aurora-strip-top');
+      if (canvas) canvas.style.display = isHome ? 'block' : 'none';
+      if (stripBottom) stripBottom.classList.toggle('active', !isHome);
+      if (stripTop) stripTop.classList.toggle('active', !isHome);
+      if (isHome) {
+        if (window.startBackgroundSimulation) window.startBackgroundSimulation();
+      } else {
+        if (window.stopBackgroundSimulation) window.stopBackgroundSimulation();
+      }
+    }
+
+    function applyTheme(themeKey) {
+      const theme = THEMES[themeKey];
+      const root = document.documentElement;
+
+      root.style.setProperty('--accent-color', theme.accentHex);
+      root.style.setProperty('--accent-glow', theme.accentGlow);
+      root.style.setProperty('--accent-soft', theme.accentSoft);
+      root.style.setProperty('--glass-border', theme.glassBorder);
+      root.style.setProperty('--glass-bg', theme.glassBg);
+      root.style.setProperty('--btn-bg', theme.btnBg);
+      root.style.setProperty('--aurora-c1', theme.auroraColors[0]);
+      root.style.setProperty('--aurora-c2', theme.auroraColors[1]);
+      root.style.setProperty('--aurora-c3', theme.auroraColors[2]);
+    }
+
+    function renderPlaceholder(img, label) {
+      img.src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="600" height="300" fill="%23091728"><rect width="100%" height="100%"/><text x="50%" y="55%" fill="%234cc9f0" font-size="16" font-family="sans-serif" text-anchor="middle">' + label + '</text></svg>';
+    }
+
+    // Renders the "works-shelf" cards on the home page from data,
+    // rather than hardcoding each card's markup directly in the HTML.
+    // Loads from works.json when possible (works correctly once this
+    // is hosted on GitHub Pages or any real web server); falls back
+    // to an identical inlined copy of that data when the fetch can't
+    // succeed, such as when the file is opened directly (file://
+    // pages block fetch of local files for security reasons).
+    const FALLBACK_WORKS = [
+      {
+        "id": "performances",
+        "navTarget": "performances",
+        "title": "Performances",
+        "description": "Real-time visuals with spatial performances across premier New York venues, integrating audio-reactive systems and real-time movement.",
+        "tag": "Live Performance / NYC",
+        "image": "DSC_2480.JPG",
+        "imageAlt": "Performances",
+        "onImageError": "handlePreviewError"
+      },
+      {
+        "id": "work-2",
+        "navTarget": "work-2",
+        "title": "Installations",
+        "description": "An interactive installation for Art House NYC, presented at Ideal Glass Studios during my internship.",
+        "tag": "Kinect Azure / SOPs",
+        "image": "project2.jpg",
+        "imageAlt": "Installations",
+        "onImageError": "renderPlaceholder",
+        "placeholderLabel": "02: Installations"
+      }
+    ];
+
+    async function loadWorks() {
+      let works;
+      try {
+        const res = await fetch('works.json');
+        if (!res.ok) throw new Error('works.json not reachable');
+        const data = await res.json();
+        works = data.works;
+      } catch (e) {
+        works = FALLBACK_WORKS;
+      }
+      renderWorks(works);
+    }
+
+    function renderWorks(works) {
+      const shelf = document.querySelector('.works-shelf');
+      if (!shelf) return;
+      shelf.innerHTML = '';
+
+      works.forEach((work) => {
+        const card = document.createElement('div');
+        card.className = 'card';
+        card.onclick = () => navigateTo(work.navTarget);
+
+        const thumb = document.createElement('div');
+        thumb.className = 'card-thumb';
+
+        const img = document.createElement('img');
+        img.src = work.image;
+        img.alt = work.imageAlt;
+        if (work.onImageError === 'renderPlaceholder') {
+          img.onerror = function() { renderPlaceholder(this, work.placeholderLabel); };
+        } else if (work.onImageError === 'handlePreviewError') {
+          img.onerror = function() { handlePreviewError(this); };
+        }
+        thumb.appendChild(img);
+
+        const h3 = document.createElement('h3');
+        h3.textContent = work.title;
+
+        const p = document.createElement('p');
+        p.textContent = work.description;
+
+        const tag = document.createElement('span');
+        tag.className = 'tag';
+        tag.textContent = work.tag;
+
+        card.append(thumb, h3, p, tag);
+        shelf.appendChild(card);
+      });
+    }
+
+    // ================= SIMULATION ENGINE =================
+    window.addEventListener('DOMContentLoaded', () => {
+      applyTheme('home');
+      buildCoriolanusGallery();
+      loadWorks();
+
+      const canvas = document.getElementById('feedback-canvas');
+      const ctx = canvas.getContext('2d');
+
+      let width = 0;
+      let height = 0;
+      const MAX_PARTICLES = 600;
+      const particles = [];
+
+      let mouse = {
+        x: window.innerWidth * 0.5,
+        y: window.innerHeight * 0.5,
+        vx: 0,
+        vy: 0,
+        active: false
+      };
+      let lastMouse = { x: mouse.x, y: mouse.y };
+
+      function resize() {
+        width = canvas.width = window.innerWidth;
+        height = canvas.height = window.innerHeight;
+        ctx.fillStyle = '#02060d';
+        ctx.fillRect(0, 0, width, height);
+      }
+      window.addEventListener('resize', resize);
+      resize();
+
+      window.addEventListener('mousemove', (e) => {
+        mouse.active = true;
+        mouse.vx = (e.clientX - lastMouse.x) * 0.25;
+        mouse.vy = (e.clientY - lastMouse.y) * 0.25;
+        mouse.x = e.clientX;
+        mouse.y = e.clientY;
+        lastMouse.x = e.clientX;
+        lastMouse.y = e.clientY;
+      }, { passive: true });
+
+      window.addEventListener('mouseleave', () => {
+        mouse.active = false;
+      });
+
+      // Lightly throttle particle work during active scrolling - a plain
+      // flag only, no DOM/class changes (those force a full style recalc).
+      // The wave layers are paused directly via inline style on their
+      // few elements (not a class toggle) to keep this cheap.
+      const waveLayerEls = document.querySelectorAll('.wave-layer');
+      let isScrolling = false;
+      let scrollStopTimer = null;
+      function markScrolling() {
+        if (!isScrolling) {
+          isScrolling = true;
+          waveLayerEls.forEach(el => { el.style.animationPlayState = 'paused'; });
+        }
+        clearTimeout(scrollStopTimer);
+        scrollStopTimer = setTimeout(() => {
+          isScrolling = false;
+          waveLayerEls.forEach(el => { el.style.animationPlayState = 'running'; });
+        }, 150);
+      }
+      window.addEventListener('scroll', markScrolling, { passive: true });
+      document.addEventListener('scroll', (e) => {
+        if (e.target !== document) markScrolling();
+      }, { passive: true, capture: true });
+
+      class DynamicThemeParticle {
+        constructor() {
+          this.isSpecialSpark = Math.random() < 0.12;
+          this.isDarkObsidian = Math.random() < 0.15;
+          this.spawn(true);
+        }
+
+        spawn(initialScatter = false) {
+          this.x = Math.random() * width;
+          this.y = initialScatter ? Math.random() * height : -10 - Math.random() * 30;
+
+          this.vx = (Math.random() - 0.5) * 0.3;
+          this.vy = Math.random() * 1.5 + 1.1;
+          this.size = Math.random() * 1.3 + 0.5;
+
+          const activeTheme = THEMES[currentThemeKey];
+          this.currentHue = activeTheme.baseHue + (Math.random() - 0.5) * activeTheme.hueSpread;
+          this.currentSat = activeTheme.baseSat;
+          this.currentLight = activeTheme.baseLight;
+
+          this.life = Math.random() * 450 + 350;
+          this.maxLife = this.life;
+        }
+
+        update(t) {
+          const wave = Math.sin(this.y * 0.003 + t * 1.5) * 0.25;
+          this.vx += wave * 0.025;
+          this.vy += 0.008;
+
+          const activeTheme = THEMES[currentThemeKey];
+
+          let targetHue = activeTheme.baseHue + (Math.sin(this.life * 0.05) * (activeTheme.hueSpread * 0.5));
+          let targetSat = activeTheme.baseSat;
+          let targetLight = activeTheme.baseLight;
+
+          if (mouse.active) {
+            const dx = this.x - mouse.x;
+            const dy = this.y - mouse.y;
+            const radius = 65;
+            const distSq = dx * dx + dy * dy;
+
+            if (distSq < radius * radius && distSq > 1) {
+              const dist = Math.sqrt(distSq);
+              const proximity = (1 - dist / radius);
+              const tangentX = -dy / dist;
+              const tangentY = dx / dist;
+              const normalX = dx / dist;
+              const normalY = dy / dist;
+
+              const swirlMagnitude = proximity * 0.85;
+              const deflectionMagnitude = proximity * 0.35;
+
+              this.vx += (tangentX * swirlMagnitude + normalX * deflectionMagnitude) + mouse.vx * 0.04;
+              this.vy += (tangentY * swirlMagnitude + normalY * deflectionMagnitude) + mouse.vy * 0.04;
+
+              targetHue = activeTheme.vortexHue;
+              targetSat = activeTheme.vortexSat;
+              targetLight = activeTheme.vortexLight;
+            }
+          }
+
+          let dHue = (targetHue - this.currentHue);
+          if (dHue > 180) dHue -= 360;
+          if (dHue < -180) dHue += 360;
+          this.currentHue += dHue * 0.08;
+
+          this.currentSat += (targetSat - this.currentSat) * 0.08;
+          this.currentLight += (targetLight - this.currentLight) * 0.08;
+
+          this.vx *= 0.96;
+          this.vy = Math.min(Math.max(this.vy * 0.99, 0.4), 4.2);
+
+          this.x += this.vx;
+          this.y += this.vy;
+
+          this.life--;
+
+          if (this.life <= 0 || this.y > height + 10 || this.x < -30 || this.x > width + 30) {
+            this.spawn(false);
+          }
+        }
+
+        draw() {
+          const alpha = (this.life / this.maxLife) * 0.75;
+          ctx.beginPath();
+          ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+          ctx.fillStyle = `hsla(${this.currentHue}, ${this.currentSat}%, ${this.currentLight}%, ${alpha})`;
+          ctx.fill();
+        }
+      }
+
+      for (let i = 0; i < MAX_PARTICLES; i++) {
+        particles.push(new DynamicThemeParticle());
+      }
+
+      function drawAuroraBorealis(t) {
+        const activeTheme = THEMES[currentThemeKey];
+        const ribbonLayers = [
+          { speed: 1.0, freq: 0.003, amp: 40, yBase: height - 60, color: activeTheme.auroraColors[0], heightOffset: 120 },
+          { speed: 1.4, freq: 0.004, amp: 55, yBase: height - 40, color: activeTheme.auroraColors[1], heightOffset: 140 },
+          { speed: 0.8, freq: 0.0025, amp: 35, yBase: height - 20, color: activeTheme.auroraColors[2], heightOffset: 100 }
+        ];
+
+        for (let l = 0; l < ribbonLayers.length; l++) {
+          const layer = ribbonLayers[l];
+          ctx.beginPath();
+          ctx.moveTo(0, height);
+
+          for (let x = 0; x <= width; x += 15) {
+            const harmonic = Math.sin(x * layer.freq + t * layer.speed) * layer.amp
+                           + Math.cos(x * layer.freq * 2.2 - t * 0.8) * (layer.amp * 0.4);
+            const y = layer.yBase + harmonic;
+            ctx.lineTo(x, y);
+          }
+
+          ctx.lineTo(width, height);
+          ctx.closePath();
+
+          const grad = ctx.createLinearGradient(0, layer.yBase - layer.heightOffset, 0, height);
+          grad.addColorStop(0, 'rgba(0, 0, 0, 0)');
+          grad.addColorStop(0.4, layer.color);
+          grad.addColorStop(1, 'rgba(2, 6, 13, 0.4)');
+
+          ctx.fillStyle = grad;
+          ctx.fill();
+        }
+      }
+
+      let time = 0;
+      let rafId = null;
+
+      function render() {
+        // While actively scrolling, skip the frame entirely - the canvas
+        // just holds its last frame for this brief moment. This frees the
+        // full cost of the animation for exactly the window where the
+        // browser needs the main thread for scroll/paint work, and it
+        // resumes automatically once the scroll settles.
+        if (!isScrolling) {
+          time += 0.004;
+
+          ctx.globalCompositeOperation = 'source-over';
+          ctx.fillStyle = 'rgba(2, 6, 13, 0.09)';
+          ctx.fillRect(0, 0, width, height);
+
+          ctx.globalCompositeOperation = 'screen';
+          drawAuroraBorealis(time);
+
+          ctx.globalCompositeOperation = 'lighter';
+          for (let i = 0; i < particles.length; i++) {
+            particles[i].update(time);
+            particles[i].draw();
+          }
+
+          mouse.vx *= 0.85;
+          mouse.vy *= 0.85;
+        }
+
+        rafId = requestAnimationFrame(render);
+      }
+
+      window.startBackgroundSimulation = function() {
+        if (rafId !== null) return;
+        rafId = requestAnimationFrame(render);
+      };
+      window.stopBackgroundSimulation = function() {
+        if (rafId !== null) {
+          cancelAnimationFrame(rafId);
+          rafId = null;
+        }
+      };
+
+      window.startBackgroundSimulation();
+    });
+  </script>
+</body>
+</html>

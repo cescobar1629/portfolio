@@ -1,0 +1,25 @@
+{
+  "works": [
+    {
+      "id": "performances",
+      "navTarget": "performances",
+      "title": "Performances",
+      "description": "Real-time visuals with spatial performances across premier New York venues, integrating audio-reactive systems and real-time movement.",
+      "tag": "Live Performance / NYC",
+      "image": "DSC_2480.JPG",
+      "imageAlt": "Performances",
+      "onImageError": "handlePreviewError"
+    },
+    {
+      "id": "work-2",
+      "navTarget": "work-2",
+      "title": "Installations",
+      "description": "An interactive installation for Art House NYC, presented at Ideal Glass Studios during my internship.",
+      "tag": "Kinect Azure / SOPs",
+      "image": "project2.jpg",
+      "imageAlt": "Installations",
+      "onImageError": "renderPlaceholder",
+      "placeholderLabel": "02: Installations"
+    }
+  ]
+}

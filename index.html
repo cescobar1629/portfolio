@@ -65,39 +65,6 @@
       font-family: 'Inter', sans-serif;
     }
 
-    /* Loading screen - shown while the page settles in, fades away
-       once fonts/assets are ready (see the JS near the end). */
-    #loading-screen {
-      position: fixed;
-      inset: 0;
-      z-index: 9999;
-      background: #02060d;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      transition: opacity 0.6s ease;
-    }
-    #loading-screen.loading-hidden {
-      opacity: 0;
-      pointer-events: none;
-    }
-    #loading-canvas {
-      position: absolute;
-      inset: 0;
-      width: 100%;
-      height: 100%;
-    }
-    .loading-title {
-      position: relative;
-      z-index: 1;
-      font-family: 'Cinzel', serif;
-      font-size: 1.5rem;
-      letter-spacing: 4px;
-      color: #ffffff;
-      opacity: 0.92;
-      animation: loadingPulse 1.8s ease-in-out infinite;
-      text-shadow: 0 0 18px rgba(76, 201, 240, 0.6);
-    }
     @keyframes loadingPulse {
       0%, 100% { opacity: 0.6; }
       50% { opacity: 1; }
@@ -285,6 +252,15 @@
       justify-content: space-between;
       align-items: center;
       margin-bottom: 30px;
+      opacity: 0;
+      transform: translateY(-16px);
+      transition: opacity 0.5s ease, transform 0.5s ease;
+      pointer-events: none;
+    }
+    header.header-visible {
+      opacity: 1;
+      transform: translateY(0);
+      pointer-events: auto;
     }
 
     .brand {
@@ -366,6 +342,50 @@
     }
 
     /* ================= MAIN HOME VIEW ================= */
+    /* Intro: gives the aurora-to-particle scroll-fade genuine
+       distance to play out over, rather than the hero content
+       sitting immediately alongside it with no room to breathe. */
+    .home-intro {
+      position: relative;
+      height: 100vh;
+    }
+    .home-intro-title {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-family: 'Cinzel', serif;
+      font-size: clamp(1.3rem, 4vw, 2rem);
+      letter-spacing: 5px;
+      color: #ffffff;
+      opacity: 0.92;
+      white-space: nowrap;
+      text-shadow: 0 0 20px rgba(76, 201, 240, 0.6);
+      animation: loadingPulse 2.4s ease-in-out infinite;
+    }
+    .home-intro-scroll-hint {
+      position: absolute;
+      bottom: 40px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 22px;
+      height: 22px;
+      animation: introHintFloat 2.2s ease-in-out infinite;
+    }
+    .home-intro-scroll-hint::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      border-right: 2px solid rgba(240, 244, 252, 0.55);
+      border-bottom: 2px solid rgba(240, 244, 252, 0.55);
+      transform: rotate(45deg);
+      transform-origin: center;
+    }
+    @keyframes introHintFloat {
+      0%, 100% { transform: translateX(-50%) translateY(0); opacity: 0.5; }
+      50% { transform: translateX(-50%) translateY(6px); opacity: 0.9; }
+    }
+
     .hero-center {
       max-width: 680px;
       margin: 30px 0 50px 10px;
@@ -401,9 +421,16 @@
       border: 1px solid var(--glass-border);
       border-radius: 10px;
       padding: 16px;
-      transition: transform 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+      transition: transform 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease,
+                  opacity 0.5s ease, translate 0.5s ease;
       cursor: pointer;
       will-change: transform;
+      opacity: 0;
+      translate: 0 24px;
+    }
+    .card.card-revealed {
+      opacity: 1;
+      translate: 0 0;
     }
 
     .card:hover {
@@ -830,11 +857,6 @@
 </head>
 <body>
 
-  <div id="loading-screen">
-    <canvas id="loading-canvas"></canvas>
-    <div class="loading-title">CHRISTOPHER ESCOBAR</div>
-  </div>
-
   <!-- Page transition overlay: rises from the bottom to cover the
        screen (visually "eating" whatever's behind it, including the
        home page's particles - see triggerParticleSweep), then
@@ -893,6 +915,11 @@
 
     <!-- ================= VIEW 0: HOME INDEX ================= -->
     <div id="view-home" class="view-page active page-visible">
+      <section class="home-intro">
+        <span class="home-intro-title">ORCHIDPARTICLEFIELDS</span>
+        <span class="home-intro-scroll-hint"></span>
+      </section>
+
       <main class="hero-center">
         <h2>TouchDesigner Projects</h2>
         <p>
@@ -1629,6 +1656,45 @@
       root.setProperty('--wave-color-4', layer(accent, 0.85, 0.9));  // nearest/brightest
     }
 
+    // Home page intro: the aurora is shown at full strength like a
+    // cover moment when you first arrive, then fades out as you
+    // scroll down, revealing the falling particle field underneath -
+    // arriving at the actual page content once it's gone. Only active
+    // while on the home page; subpages keep the aurora at its normal
+    // constant opacity instead.
+    let homeIntroScrollHandler = null;
+
+    let homeIntroSeen = false;
+
+    function updateHomeIntroFade() {
+      const stripBottom = document.getElementById('aurora-strip-bottom');
+      const stripTop = document.getElementById('aurora-strip-top');
+      const fadeDistance = window.innerHeight * 0.9;
+      const fade = Math.max(0, 1 - window.scrollY / fadeDistance);
+      if (stripBottom) stripBottom.style.opacity = fade;
+      if (stripTop) stripTop.style.opacity = fade * 0.7; // top strip is normally dimmer (0.7 base)
+      if (fade <= 0) homeIntroSeen = true;
+    }
+
+    // More reliable than computing a manual scroll-percentage
+    // threshold (which mobile browsers can throw off as their address
+    // bar shows/hides and resizes the viewport mid-scroll): the header
+    // simply reveals once the intro section has scrolled fully out of
+    // view, and hides again if you scroll back up into it.
+    let introObserver = null;
+    function setupIntroObserver() {
+      if (introObserver) return;
+      const introSection = document.querySelector('.home-intro');
+      if (!introSection) return;
+      introObserver = new IntersectionObserver((entries) => {
+        entries.forEach((entry) => {
+          const header = document.querySelector('header');
+          if (header) header.classList.toggle('header-visible', !entry.isIntersecting);
+        });
+      }, { threshold: 0 });
+      introObserver.observe(introSection);
+    }
+
     function navigateTo(viewId) {
       const target = document.getElementById('view-' + viewId);
       if (!target) return;
@@ -1649,8 +1715,34 @@
         const stripBottom = document.getElementById('aurora-strip-bottom');
         const stripTop = document.getElementById('aurora-strip-top');
         if (canvas) canvas.style.display = isHome ? 'block' : 'none';
-        if (stripBottom) stripBottom.classList.toggle('active', !isHome);
-        if (stripTop) stripTop.classList.toggle('active', !isHome);
+
+        if (stripBottom) stripBottom.classList.add('active');
+        if (stripTop) stripTop.classList.add('active');
+
+        if (isHome) {
+          // Cover moment: aurora at full strength, tied to scroll
+          // position so it fades out as you scroll down.
+          if (stripBottom) stripBottom.style.opacity = '';
+          if (stripTop) stripTop.style.opacity = '';
+          updateHomeIntroFade();
+          setupIntroObserver();
+          if (!homeIntroScrollHandler) {
+            homeIntroScrollHandler = updateHomeIntroFade;
+            window.addEventListener('scroll', homeIntroScrollHandler, { passive: true });
+          }
+        } else {
+          // Subpages: constant opacity, not tied to scroll. Header is
+          // always visible here too - there's no intro to scroll past.
+          if (homeIntroScrollHandler) {
+            window.removeEventListener('scroll', homeIntroScrollHandler);
+            homeIntroScrollHandler = null;
+          }
+          if (stripBottom) stripBottom.style.opacity = '';
+          if (stripTop) stripTop.style.opacity = '';
+          const header = document.querySelector('header');
+          if (header) header.classList.add('header-visible');
+        }
+
         if (isHome) {
           if (window.startBackgroundSimulation) window.startBackgroundSimulation();
         } else {
@@ -1665,7 +1757,15 @@
         target.classList.add('active');
         void target.offsetWidth; // force reflow so the fade-in actually transitions
         requestAnimationFrame(() => target.classList.add('page-visible'));
-        window.scrollTo({ top: 0, behavior: 'auto' });
+
+        // Once you've already scrolled past the home intro once, there's
+        // no need to make you sit through it again every time you come
+        // back - land straight on the actual content instead.
+        if (viewId === 'home' && homeIntroSeen) {
+          window.scrollTo({ top: window.innerHeight + 20, behavior: 'auto' });
+        } else {
+          window.scrollTo({ top: 0, behavior: 'auto' });
+        }
 
         // The gallery is built once at page load, while its subpage is
         // still hidden (clientWidth reads 0 for display:none elements,
@@ -1679,29 +1779,43 @@
         }
       }
 
+      // The wave only plays when entering the water (leaving home) or
+      // surfacing back out of it (returning to home) - moving between
+      // two subpages doesn't re-trigger it, since you're already
+      // "underwater" the whole time.
+      const usesWave = wasHome || viewId === 'home';
+
       if (current && current !== target) {
-        // Leaving the home page: sweep its particles toward the
-        // bottom right away, so they're visibly rushing down as the
-        // wave rises to meet and cover them - the "ocean eating the
-        // particles" effect.
-        if (wasHome && window.triggerParticleSweep) {
-          window.triggerParticleSweep(WAVE_RISE_MS + 150);
+        if (usesWave) {
+          // Leaving the home page: sweep its particles toward the
+          // bottom right away, so they're visibly rushing down as the
+          // wave rises to meet and cover them - the "ocean eating the
+          // particles" effect.
+          if (wasHome && window.triggerParticleSweep) {
+            window.triggerParticleSweep(WAVE_RISE_MS + 150);
+          }
+
+          // The wave itself will visually cover the current page as
+          // it rises - no separate fade-out needed here.
+          setWaveColorsForTheme(viewId);
+          if (waveOverlay) waveOverlay.classList.add('rising');
+
+          setTimeout(() => {
+            // Fully covered by the wave now - safe to swap the
+            // background/theme and page content without it being
+            // seen, then recede the wave to reveal the new page.
+            applyBackgroundForView();
+            showTarget();
+            if (waveOverlay) waveOverlay.classList.remove('rising');
+          }, WAVE_RISE_MS);
+        } else {
+          // Subpage to subpage: a plain crossfade, no wave.
+          current.classList.remove('page-visible');
+          setTimeout(() => {
+            applyBackgroundForView();
+            showTarget();
+          }, 350);
         }
-
-        // Fade the current page out while the wave rises to cover it,
-        // colored to match the page it's about to reveal.
-        current.classList.remove('page-visible');
-        setWaveColorsForTheme(viewId);
-        if (waveOverlay) waveOverlay.classList.add('rising');
-
-        setTimeout(() => {
-          // Fully covered by the wave now - safe to swap the
-          // background/theme and page content without it being seen,
-          // then recede the wave to reveal the new page underneath.
-          applyBackgroundForView();
-          showTarget();
-          if (waveOverlay) waveOverlay.classList.remove('rising');
-        }, WAVE_RISE_MS);
       } else {
         applyBackgroundForView();
         showTarget();
@@ -1807,139 +1921,44 @@
         card.append(thumb, h3, p, tag);
         shelf.appendChild(card);
       });
+
+      revealWorkCards(shelf);
     }
 
-    // Loading screen vortex: particles spiral inward toward the
-    // center, continuously respawning at the outer edge, for as long
-    // as the loading screen is visible. Runs independently of the
-    // main site's particle system (which hasn't started yet at this
-    // point on the home page, and never runs at all on subpages).
-    (function() {
-      const canvas = document.getElementById('loading-canvas');
-      if (!canvas) return;
-      const ctx = canvas.getContext('2d');
-      let w, h, cx, cy;
-      let rafId = null;
-
-      function resize() {
-        w = canvas.width = window.innerWidth;
-        h = canvas.height = window.innerHeight;
-        cx = w / 2;
-        cy = h / 2;
-      }
-      resize();
-      window.addEventListener('resize', resize);
-
-      const VORTEX_PARTICLE_COUNT = 260;
-      const MAX_RADIUS = Math.sqrt(w * w + h * h) / 2;
-
-      function spawnVortexParticle(atOuterEdge) {
-        return {
-          angle: Math.random() * Math.PI * 2,
-          radius: atOuterEdge ? MAX_RADIUS * (0.7 + Math.random() * 0.3) : Math.random() * MAX_RADIUS,
-          angularSpeed: 0.012 + Math.random() * 0.02,
-          size: 1 + Math.random() * 2.2,
-          hueMix: Math.random()
-        };
-      }
-
-      const vortexParticles = [];
-      for (let i = 0; i < VORTEX_PARTICLE_COUNT; i++) {
-        vortexParticles.push(spawnVortexParticle(false));
-      }
-
-      function renderVortex() {
-        // Same trailing-feedback technique as the real particle
-        // system: never fully clear the canvas, just paint a faint
-        // dark layer over the last frame. Old positions fade out
-        // gradually instead of vanishing instantly, so each particle
-        // leaves a curved light trail behind it as it spirals in.
-        ctx.globalCompositeOperation = 'source-over';
-        ctx.fillStyle = 'rgba(2, 6, 13, 0.14)';
-        ctx.fillRect(0, 0, w, h);
-
-        ctx.globalCompositeOperation = 'lighter';
-
-        for (const p of vortexParticles) {
-          // Spiral inward: angle keeps advancing, radius shrinks - and
-          // shrinks faster the closer it gets, so the motion visibly
-          // accelerates toward the center like real water going down
-          // a drain, rather than moving at a flat constant rate.
-          // Angular speed also ramps up sharply near the center - like
-          // a real accretion disk, where inner material orbits far
-          // faster than outer material - which is what actually reads
-          // as "black hole" rather than just a plain spiral.
-          const spinBoost = Math.min(7, MAX_RADIUS / Math.max(p.radius, 26));
-          p.angle += p.angularSpeed * spinBoost;
-          p.radius *= 0.986;
-
-          if (p.radius < 4) {
-            Object.assign(p, spawnVortexParticle(true));
-            continue;
-          }
-
-          const x = cx + Math.cos(p.angle) * p.radius;
-          const y = cy + Math.sin(p.angle) * p.radius * 0.85; // slightly flattened, less perfectly circular
-          const fade = Math.min(1, p.radius / (MAX_RADIUS * 0.3));
-
-          // Blends between the site's base accent cyan (#4cc9f0) and
-          // the teal-green the real particle field shifts toward
-          // under the interactive mouse-swirl effect - the same two
-          // colors the actual particle system uses, not approximated.
-          const r = Math.round(76 + p.hueMix * 30);
-          const g = Math.round(201 + p.hueMix * 50);
-          const b = Math.round(240 - p.hueMix * 42);
-
-          ctx.beginPath();
-          ctx.arc(x, y, p.size, 0, Math.PI * 2);
-          ctx.fillStyle = `rgba(${r},${g},${b},${0.75 * fade})`;
-          ctx.shadowColor = `rgba(${r},${g},${b},0.9)`;
-          ctx.shadowBlur = 8;
-          ctx.fill();
-        }
-        ctx.shadowBlur = 0;
-
-        rafId = requestAnimationFrame(renderVortex);
-      }
-      renderVortex();
-
-      // Stop the loop once the loading screen is gone - no need to
-      // keep animating an invisible, removed canvas.
-      const loader = document.getElementById('loading-screen');
-      if (loader) {
-        const stopObserver = new MutationObserver(() => {
-          if (!document.body.contains(loader)) {
-            if (rafId) cancelAnimationFrame(rafId);
-            stopObserver.disconnect();
-          }
+    // Reveals each work card with a fade + slight upward slide as it
+    // enters the viewport (or immediately, if it's already visible on
+    // load) rather than everything appearing abruptly all at once.
+    // Staggered slightly per card for a gentle cascading feel.
+    function revealWorkCards(shelf) {
+      const cards = shelf.querySelectorAll('.card');
+      const observer = new IntersectionObserver((entries) => {
+        entries.forEach((entry) => {
+          if (!entry.isIntersecting) return;
+          const card = entry.target;
+          const index = Array.from(cards).indexOf(card);
+          setTimeout(() => card.classList.add('card-revealed'), index * 90);
+          observer.unobserve(card);
         });
-        stopObserver.observe(document.body, { childList: true });
-      }
-    })();
+      }, { threshold: 0.15 });
 
-    // Loading screen: hides once BOTH a minimum display time has
-    // passed (so it never flashes by too fast to register) AND the
-    // page has actually finished loading (so slow connections still
-    // see it until things are ready).
-    (function() {
-      let minTimeElapsed = false;
-      let pageLoaded = false;
-      function maybeHideLoader() {
-        if (!minTimeElapsed || !pageLoaded) return;
-        const loader = document.getElementById('loading-screen');
-        if (!loader) return;
-        loader.classList.add('loading-hidden');
-        setTimeout(() => loader.remove(), 650);
-      }
-      setTimeout(() => { minTimeElapsed = true; maybeHideLoader(); }, 900);
-      window.addEventListener('load', () => { pageLoaded = true; maybeHideLoader(); });
-    })();
+      cards.forEach((card) => observer.observe(card));
+    }
+
 
     // ================= SIMULATION ENGINE =================
     window.addEventListener('DOMContentLoaded', () => {
       applyTheme('home');
       loadGalleryManifest().then(buildCoriolanusGallery);
       loadWorks();
+
+      // The page starts on home directly (not via navigateTo), so set
+      // up the intro scroll-fade here too.
+      updateHomeIntroFade();
+      setupIntroObserver();
+      if (!homeIntroScrollHandler) {
+        homeIntroScrollHandler = updateHomeIntroFade;
+        window.addEventListener('scroll', homeIntroScrollHandler, { passive: true });
+      }
 
       const canvas = document.getElementById('feedback-canvas');
       const ctx = canvas.getContext('2d');

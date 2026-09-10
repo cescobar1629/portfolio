@@ -243,24 +243,22 @@
       display: flex;
       flex-direction: column;
       justify-content: space-between;
-      padding: 30px 48px 0 48px;
+      padding: 110px 48px 0 48px;
     }
 
     /* Header */
     header {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 10;
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin-bottom: 30px;
+      padding: 30px 48px;
       opacity: 0;
-      transform: translateY(-16px);
-      transition: opacity 0.5s ease, transform 0.5s ease;
-      pointer-events: none;
-    }
-    header.header-visible {
-      opacity: 1;
-      transform: translateY(0);
-      pointer-events: auto;
+      transition: opacity 0.15s ease;
     }
 
     .brand {
@@ -348,6 +346,14 @@
     .home-intro {
       position: relative;
       height: 100vh;
+      margin: -110px -48px 0 -48px;
+      width: calc(100% + 96px);
+    }
+    @media (max-width: 768px) {
+      .home-intro {
+        margin: -100px -24px 0 -24px;
+        width: calc(100% + 48px);
+      }
     }
     .home-intro-title {
       position: absolute;
@@ -376,14 +382,15 @@
       content: '';
       position: absolute;
       inset: 0;
-      border-right: 2px solid rgba(240, 244, 252, 0.55);
-      border-bottom: 2px solid rgba(240, 244, 252, 0.55);
+      border-right: 3px solid #ffffff;
+      border-bottom: 3px solid #ffffff;
       transform: rotate(45deg);
       transform-origin: center;
+      filter: drop-shadow(0 0 8px rgba(255, 255, 255, 0.9));
     }
     @keyframes introHintFloat {
-      0%, 100% { transform: translateX(-50%) translateY(0); opacity: 0.5; }
-      50% { transform: translateX(-50%) translateY(6px); opacity: 0.9; }
+      0%, 100% { transform: translateX(-50%) translateY(0); }
+      50% { transform: translateX(-50%) translateY(6px); }
     }
 
     .hero-center {
@@ -845,7 +852,7 @@
 
     @media (max-width: 900px) {
       .hero-center h2 { font-size: 2rem; }
-      .app-layout { padding: 24px 24px 0 24px; }
+      .app-layout { padding: 100px 24px 0 24px; }
       .subpage-container { padding: 25px; }
       .venues-grid { grid-template-columns: 1fr; }
       .subpage-hero-img { height: 220px; }
@@ -917,7 +924,7 @@
     <div id="view-home" class="view-page active page-visible">
       <section class="home-intro">
         <span class="home-intro-title">ORCHIDPARTICLEFIELDS</span>
-        <span class="home-intro-scroll-hint"></span>
+        <span class="home-intro-scroll-hint" id="homeIntroChevron"></span>
       </section>
 
       <main class="hero-center">
@@ -1666,33 +1673,68 @@
 
     let homeIntroSeen = false;
 
+    // DOM references cached once instead of re-queried on every call -
+    // these elements never change, so repeatedly calling getElementById/
+    // querySelector for them on every scroll event was wasted work.
+    let introDomCache = null;
+    function getIntroDomRefs() {
+      if (!introDomCache) {
+        introDomCache = {
+          stripBottom: document.getElementById('aurora-strip-bottom'),
+          stripTop: document.getElementById('aurora-strip-top'),
+          introSection: document.querySelector('.home-intro'),
+          header: document.querySelector('header'),
+          chevron: document.getElementById('homeIntroChevron')
+        };
+      }
+      return introDomCache;
+    }
+
     function updateHomeIntroFade() {
-      const stripBottom = document.getElementById('aurora-strip-bottom');
-      const stripTop = document.getElementById('aurora-strip-top');
+      const { stripBottom, stripTop, introSection, header, chevron } = getIntroDomRefs();
       const fadeDistance = window.innerHeight * 0.9;
       const fade = Math.max(0, 1 - window.scrollY / fadeDistance);
       if (stripBottom) stripBottom.style.opacity = fade;
       if (stripTop) stripTop.style.opacity = fade * 0.7; // top strip is normally dimmer (0.7 base)
       if (fade <= 0) homeIntroSeen = true;
+
+      // Chevron fades out quickly - fully gone within the first
+      // quarter of the scroll - well before the header finishes
+      // fading in, so the two don't visually overlap for long.
+      if (chevron) {
+        const chevronFadeDistance = window.innerHeight * 0.25;
+        chevron.style.opacity = Math.max(0, 1 - window.scrollY / chevronFadeDistance);
+      }
+
+      // Header fades in continuously as you scroll through the intro
+      // section - 0% opacity at the very top, gradually increasing to
+      // fully visible by the time you've scrolled past it - rather
+      // than snapping on at one exact point. Measured directly from
+      // the real element's position, not an assumed vh percentage.
+      // getBoundingClientRect() forces a layout read, so this whole
+      // function is only ever invoked at most once per animation
+      // frame from scrolling (see queueHomeIntroFadeUpdate below),
+      // rather than on every raw scroll event, which can fire far
+      // more often than the screen can even repaint.
+      if (introSection && header) {
+        const introHeight = introSection.offsetHeight || window.innerHeight;
+        const introBottom = introSection.getBoundingClientRect().bottom;
+        const scrolledPast = Math.min(1, Math.max(0, 1 - introBottom / introHeight));
+        header.style.opacity = scrolledPast;
+        header.style.pointerEvents = scrolledPast > 0.5 ? 'auto' : 'none';
+      }
     }
 
-    // More reliable than computing a manual scroll-percentage
-    // threshold (which mobile browsers can throw off as their address
-    // bar shows/hides and resizes the viewport mid-scroll): the header
-    // simply reveals once the intro section has scrolled fully out of
-    // view, and hides again if you scroll back up into it.
-    let introObserver = null;
-    function setupIntroObserver() {
-      if (introObserver) return;
-      const introSection = document.querySelector('.home-intro');
-      if (!introSection) return;
-      introObserver = new IntersectionObserver((entries) => {
-        entries.forEach((entry) => {
-          const header = document.querySelector('header');
-          if (header) header.classList.toggle('header-visible', !entry.isIntersecting);
-        });
-      }, { threshold: 0 });
-      introObserver.observe(introSection);
+    // Scroll-event entry point: batches to at most once per animation
+    // frame, regardless of how many raw scroll events fire in between.
+    let homeIntroFadeQueued = false;
+    function queueHomeIntroFadeUpdate() {
+      if (homeIntroFadeQueued) return;
+      homeIntroFadeQueued = true;
+      requestAnimationFrame(() => {
+        homeIntroFadeQueued = false;
+        updateHomeIntroFade();
+      });
     }
 
     function navigateTo(viewId) {
@@ -1725,9 +1767,8 @@
           if (stripBottom) stripBottom.style.opacity = '';
           if (stripTop) stripTop.style.opacity = '';
           updateHomeIntroFade();
-          setupIntroObserver();
           if (!homeIntroScrollHandler) {
-            homeIntroScrollHandler = updateHomeIntroFade;
+            homeIntroScrollHandler = queueHomeIntroFadeUpdate;
             window.addEventListener('scroll', homeIntroScrollHandler, { passive: true });
           }
         } else {
@@ -1739,8 +1780,11 @@
           }
           if (stripBottom) stripBottom.style.opacity = '';
           if (stripTop) stripTop.style.opacity = '';
-          const header = document.querySelector('header');
-          if (header) header.classList.add('header-visible');
+          const header = getIntroDomRefs().header;
+          if (header) {
+            header.style.opacity = '1';
+            header.style.pointerEvents = 'auto';
+          }
         }
 
         if (isHome) {
@@ -1954,9 +1998,8 @@
       // The page starts on home directly (not via navigateTo), so set
       // up the intro scroll-fade here too.
       updateHomeIntroFade();
-      setupIntroObserver();
       if (!homeIntroScrollHandler) {
-        homeIntroScrollHandler = updateHomeIntroFade;
+        homeIntroScrollHandler = queueHomeIntroFadeUpdate;
         window.addEventListener('scroll', homeIntroScrollHandler, { passive: true });
       }
 

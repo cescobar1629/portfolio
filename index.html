@@ -65,6 +65,105 @@
       font-family: 'Inter', sans-serif;
     }
 
+    /* Loading screen - shown while the page settles in, fades away
+       once fonts/assets are ready (see the JS near the end). */
+    #loading-screen {
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      background: #02060d;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: opacity 0.6s ease;
+    }
+    #loading-screen.loading-hidden {
+      opacity: 0;
+      pointer-events: none;
+    }
+    #loading-canvas {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+    }
+    .loading-title {
+      position: relative;
+      z-index: 1;
+      font-family: 'Cinzel', serif;
+      font-size: 1.5rem;
+      letter-spacing: 4px;
+      color: #ffffff;
+      opacity: 0.92;
+      animation: loadingPulse 1.8s ease-in-out infinite;
+      text-shadow: 0 0 18px rgba(76, 201, 240, 0.6);
+    }
+    @keyframes loadingPulse {
+      0%, 100% { opacity: 0.6; }
+      50% { opacity: 1; }
+    }
+
+    /* Page transition wave - rises from below the viewport to fully
+       cover it, then recedes once the new page is ready underneath. */
+    .page-transition-wave {
+      position: fixed;
+      inset: 0;
+      z-index: 8000;
+      pointer-events: none;
+      overflow: hidden;
+      transform: translateY(105%);
+      transition: transform 1.1s cubic-bezier(0.4, 0.0, 0.2, 1);
+    }
+    .page-transition-wave.rising {
+      transform: translateY(0%);
+    }
+    .wave-fill {
+      position: absolute;
+      bottom: 0;
+      left: -50%;
+      width: 200%;
+      height: 100%;
+    }
+    .wave-fill-1 path { fill: var(--wave-color-1, rgba(6, 30, 55, 0.98)); }
+    .wave-fill-2 path { fill: var(--wave-color-2, rgba(10, 50, 85, 0.97)); }
+    .wave-fill-3 path { fill: var(--wave-color-3, rgba(20, 90, 120, 0.95)); }
+    .wave-fill-4 path { fill: var(--wave-color-4, rgba(60, 170, 200, 0.9)); }
+    .wave-fill-2 { transform: translateY(14px); }
+    .wave-fill-3 { transform: translateY(28px); }
+    .wave-fill-4 { transform: translateY(42px); }
+
+    /* Gentle horizontal drift while the wave is up, each layer at a
+       different speed/direction, so it reads as flowing water with
+       real depth rather than a rigid shape sliding into place. */
+    .page-transition-wave.rising .wave-fill-1 {
+      animation: waveFlow1 3.2s ease-in-out infinite;
+    }
+    .page-transition-wave.rising .wave-fill-2 {
+      animation: waveFlow2 2.5s ease-in-out infinite;
+    }
+    .page-transition-wave.rising .wave-fill-3 {
+      animation: waveFlow3 2s ease-in-out infinite reverse;
+    }
+    .page-transition-wave.rising .wave-fill-4 {
+      animation: waveFlow4 1.6s ease-in-out infinite;
+    }
+    @keyframes waveFlow1 {
+      0%, 100% { transform: translateX(0); }
+      50% { transform: translateX(-3%); }
+    }
+    @keyframes waveFlow2 {
+      0%, 100% { transform: translateX(0) translateY(14px); }
+      50% { transform: translateX(2.5%) translateY(14px); }
+    }
+    @keyframes waveFlow3 {
+      0%, 100% { transform: translateX(0) translateY(28px); }
+      50% { transform: translateX(-4%) translateY(28px); }
+    }
+    @keyframes waveFlow4 {
+      0%, 100% { transform: translateX(0) translateY(42px); }
+      50% { transform: translateX(3.5%) translateY(42px); }
+    }
+
     /* Fixed Simulation Canvas */
     #feedback-canvas {
       position: fixed;
@@ -252,19 +351,18 @@
     .view-page {
       display: none;
       opacity: 0;
-      transition: opacity 0.4s ease;
+      transform: translateY(14px);
+      transition: opacity 0.35s ease, transform 0.35s ease;
       flex-grow: 1;
     }
 
     .view-page.active {
       display: block;
-      opacity: 1;
-      animation: fadeInView 0.4s ease forwards;
     }
 
-    @keyframes fadeInView {
-      from { opacity: 0; transform: translateY(12px); }
-      to { opacity: 1; transform: translateY(0); }
+    .view-page.active.page-visible {
+      opacity: 1;
+      transform: translateY(0);
     }
 
     /* ================= MAIN HOME VIEW ================= */
@@ -732,6 +830,30 @@
 </head>
 <body>
 
+  <div id="loading-screen">
+    <canvas id="loading-canvas"></canvas>
+    <div class="loading-title">CHRISTOPHER ESCOBAR</div>
+  </div>
+
+  <!-- Page transition overlay: rises from the bottom to cover the
+       screen (visually "eating" whatever's behind it, including the
+       home page's particles - see triggerParticleSweep), then
+       recedes once the new page is in place underneath. -->
+  <div id="page-transition-wave" class="page-transition-wave">
+    <svg class="wave-fill wave-fill-1" viewBox="0 0 1200 1000" preserveAspectRatio="none">
+      <path d="M0,100 C220,20 380,180 600,100 C820,20 980,180 1200,100 L1200,1000 L0,1000 Z"/>
+    </svg>
+    <svg class="wave-fill wave-fill-2" viewBox="0 0 1200 1000" preserveAspectRatio="none">
+      <path d="M0,140 C200,70 400,190 600,140 C800,70 1000,190 1200,140 L1200,1000 L0,1000 Z"/>
+    </svg>
+    <svg class="wave-fill wave-fill-3" viewBox="0 0 1200 1000" preserveAspectRatio="none">
+      <path d="M0,180 C150,110 350,230 600,180 C850,110 1050,230 1200,180 L1200,1000 L0,1000 Z"/>
+    </svg>
+    <svg class="wave-fill wave-fill-4" viewBox="0 0 1200 1000" preserveAspectRatio="none">
+      <path d="M0,215 C180,260 420,160 600,215 C780,260 1020,160 1200,215 L1200,1000 L0,1000 Z"/>
+    </svg>
+  </div>
+
   <!-- SIMULATION CANVAS -->
   <canvas id="feedback-canvas"></canvas>
   <div class="vignette"></div>
@@ -770,7 +892,7 @@
     </header>
 
     <!-- ================= VIEW 0: HOME INDEX ================= -->
-    <div id="view-home" class="view-page active">
+    <div id="view-home" class="view-page active page-visible">
       <main class="hero-center">
         <h2>TouchDesigner Projects</h2>
         <p>
@@ -1466,46 +1588,123 @@
     }
 
     // Subpage Navigation Router
+    const WAVE_RISE_MS = 1100;
+
+    function hexToRgb(hex) {
+      const clean = hex.replace('#', '');
+      const num = parseInt(clean, 16);
+      return { r: (num >> 16) & 255, g: (num >> 8) & 255, b: num & 255 };
+    }
+
+    // Colors the rising wave to match the page it's about to reveal,
+    // rather than a single fixed color regardless of destination.
+    function parseColorComponents(str) {
+      const match = str.match(/rgba?\(([^)]+)\)/);
+      if (match) {
+        const parts = match[1].split(',').map(s => parseFloat(s.trim()));
+        return { r: parts[0], g: parts[1], b: parts[2] };
+      }
+      return hexToRgb(str);
+    }
+
+    // Colors the rising wave using the destination page's actual
+    // designed palette - its three aurora colors plus its accent -
+    // spread across four layers for real color variety, from a dark
+    // deep-water tone up to a brighter near-surface tone, instead of
+    // just two mechanically-darkened shades of a single color.
+    function setWaveColorsForTheme(viewId) {
+      const theme = THEMES[viewId] || THEMES.home;
+      const aurora0 = parseColorComponents(theme.auroraColors[0]);
+      const aurora1 = parseColorComponents(theme.auroraColors[1]);
+      const aurora2 = parseColorComponents(theme.auroraColors[2]);
+      const accent = hexToRgb(theme.accentHex);
+      const root = document.documentElement.style;
+
+      const layer = (c, mult, alpha) =>
+        `rgba(${Math.round(c.r * mult)},${Math.round(c.g * mult)},${Math.round(c.b * mult)},${alpha})`;
+
+      root.setProperty('--wave-color-1', layer(aurora2, 0.32, 0.98)); // deepest/darkest
+      root.setProperty('--wave-color-2', layer(aurora0, 0.5, 0.97));
+      root.setProperty('--wave-color-3', layer(aurora1, 0.72, 0.95));
+      root.setProperty('--wave-color-4', layer(accent, 0.85, 0.9));  // nearest/brightest
+    }
+
     function navigateTo(viewId) {
-      document.querySelectorAll('.view-page').forEach(page => {
-        page.classList.remove('active');
-      });
-
       const target = document.getElementById('view-' + viewId);
-      if (target) {
-        target.classList.add('active');
-        window.scrollTo({ top: 0, behavior: 'smooth' });
+      if (!target) return;
+      const current = document.querySelector('.view-page.active');
+      const wasHome = !!(current && current.id === 'view-home');
+      const waveOverlay = document.getElementById('page-transition-wave');
+
+      function applyBackgroundForView() {
+        currentThemeKey = THEMES[viewId] ? viewId : 'home';
+        applyTheme(currentThemeKey);
+
+        // Only the home page runs the full particle simulation -
+        // subpages (which host the heavy image gallery) get the
+        // lightweight strip instead, and the canvas simulation is
+        // stopped outright to free the main thread for scrolling.
+        const isHome = viewId === 'home';
+        const canvas = document.getElementById('feedback-canvas');
+        const stripBottom = document.getElementById('aurora-strip-bottom');
+        const stripTop = document.getElementById('aurora-strip-top');
+        if (canvas) canvas.style.display = isHome ? 'block' : 'none';
+        if (stripBottom) stripBottom.classList.toggle('active', !isHome);
+        if (stripTop) stripTop.classList.toggle('active', !isHome);
+        if (isHome) {
+          if (window.startBackgroundSimulation) window.startBackgroundSimulation();
+        } else {
+          if (window.stopBackgroundSimulation) window.stopBackgroundSimulation();
+        }
       }
 
-      currentThemeKey = THEMES[viewId] ? viewId : 'home';
-      applyTheme(currentThemeKey);
-
-      // The gallery is built once at page load, while its subpage is
-      // still hidden (clientWidth reads 0 for display:none elements,
-      // no matter how many frames pass). Rebuild the pool now that
-      // the page is actually visible and has real layout dimensions.
-      if (viewId === 'mark-morris' && typeof buildGalleryPool === 'function') {
-        requestAnimationFrame(() => {
-          buildGalleryPool();
-          renderGalleryWindow();
+      function showTarget() {
+        document.querySelectorAll('.view-page').forEach(page => {
+          page.classList.remove('active', 'page-visible');
         });
+        target.classList.add('active');
+        void target.offsetWidth; // force reflow so the fade-in actually transitions
+        requestAnimationFrame(() => target.classList.add('page-visible'));
+        window.scrollTo({ top: 0, behavior: 'auto' });
+
+        // The gallery is built once at page load, while its subpage is
+        // still hidden (clientWidth reads 0 for display:none elements,
+        // no matter how many frames pass). Rebuild the pool now that
+        // the page is actually visible and has real layout dimensions.
+        if (viewId === 'mark-morris' && typeof buildGalleryPool === 'function') {
+          requestAnimationFrame(() => {
+            buildGalleryPool();
+            renderGalleryWindow();
+          });
+        }
       }
 
-      // Only the home page runs the full particle simulation - subpages
-      // (which host the heavy image gallery) get the lightweight strip
-      // instead, and the canvas simulation is stopped outright to free
-      // the main thread for scrolling.
-      const isHome = viewId === 'home';
-      const canvas = document.getElementById('feedback-canvas');
-      const stripBottom = document.getElementById('aurora-strip-bottom');
-      const stripTop = document.getElementById('aurora-strip-top');
-      if (canvas) canvas.style.display = isHome ? 'block' : 'none';
-      if (stripBottom) stripBottom.classList.toggle('active', !isHome);
-      if (stripTop) stripTop.classList.toggle('active', !isHome);
-      if (isHome) {
-        if (window.startBackgroundSimulation) window.startBackgroundSimulation();
+      if (current && current !== target) {
+        // Leaving the home page: sweep its particles toward the
+        // bottom right away, so they're visibly rushing down as the
+        // wave rises to meet and cover them - the "ocean eating the
+        // particles" effect.
+        if (wasHome && window.triggerParticleSweep) {
+          window.triggerParticleSweep(WAVE_RISE_MS + 150);
+        }
+
+        // Fade the current page out while the wave rises to cover it,
+        // colored to match the page it's about to reveal.
+        current.classList.remove('page-visible');
+        setWaveColorsForTheme(viewId);
+        if (waveOverlay) waveOverlay.classList.add('rising');
+
+        setTimeout(() => {
+          // Fully covered by the wave now - safe to swap the
+          // background/theme and page content without it being seen,
+          // then recede the wave to reveal the new page underneath.
+          applyBackgroundForView();
+          showTarget();
+          if (waveOverlay) waveOverlay.classList.remove('rising');
+        }, WAVE_RISE_MS);
       } else {
-        if (window.stopBackgroundSimulation) window.stopBackgroundSimulation();
+        applyBackgroundForView();
+        showTarget();
       }
     }
 
@@ -1610,6 +1809,132 @@
       });
     }
 
+    // Loading screen vortex: particles spiral inward toward the
+    // center, continuously respawning at the outer edge, for as long
+    // as the loading screen is visible. Runs independently of the
+    // main site's particle system (which hasn't started yet at this
+    // point on the home page, and never runs at all on subpages).
+    (function() {
+      const canvas = document.getElementById('loading-canvas');
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      let w, h, cx, cy;
+      let rafId = null;
+
+      function resize() {
+        w = canvas.width = window.innerWidth;
+        h = canvas.height = window.innerHeight;
+        cx = w / 2;
+        cy = h / 2;
+      }
+      resize();
+      window.addEventListener('resize', resize);
+
+      const VORTEX_PARTICLE_COUNT = 260;
+      const MAX_RADIUS = Math.sqrt(w * w + h * h) / 2;
+
+      function spawnVortexParticle(atOuterEdge) {
+        return {
+          angle: Math.random() * Math.PI * 2,
+          radius: atOuterEdge ? MAX_RADIUS * (0.7 + Math.random() * 0.3) : Math.random() * MAX_RADIUS,
+          angularSpeed: 0.012 + Math.random() * 0.02,
+          size: 1 + Math.random() * 2.2,
+          hueMix: Math.random()
+        };
+      }
+
+      const vortexParticles = [];
+      for (let i = 0; i < VORTEX_PARTICLE_COUNT; i++) {
+        vortexParticles.push(spawnVortexParticle(false));
+      }
+
+      function renderVortex() {
+        // Same trailing-feedback technique as the real particle
+        // system: never fully clear the canvas, just paint a faint
+        // dark layer over the last frame. Old positions fade out
+        // gradually instead of vanishing instantly, so each particle
+        // leaves a curved light trail behind it as it spirals in.
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.fillStyle = 'rgba(2, 6, 13, 0.14)';
+        ctx.fillRect(0, 0, w, h);
+
+        ctx.globalCompositeOperation = 'lighter';
+
+        for (const p of vortexParticles) {
+          // Spiral inward: angle keeps advancing, radius shrinks - and
+          // shrinks faster the closer it gets, so the motion visibly
+          // accelerates toward the center like real water going down
+          // a drain, rather than moving at a flat constant rate.
+          // Angular speed also ramps up sharply near the center - like
+          // a real accretion disk, where inner material orbits far
+          // faster than outer material - which is what actually reads
+          // as "black hole" rather than just a plain spiral.
+          const spinBoost = Math.min(7, MAX_RADIUS / Math.max(p.radius, 26));
+          p.angle += p.angularSpeed * spinBoost;
+          p.radius *= 0.986;
+
+          if (p.radius < 4) {
+            Object.assign(p, spawnVortexParticle(true));
+            continue;
+          }
+
+          const x = cx + Math.cos(p.angle) * p.radius;
+          const y = cy + Math.sin(p.angle) * p.radius * 0.85; // slightly flattened, less perfectly circular
+          const fade = Math.min(1, p.radius / (MAX_RADIUS * 0.3));
+
+          // Blends between the site's base accent cyan (#4cc9f0) and
+          // the teal-green the real particle field shifts toward
+          // under the interactive mouse-swirl effect - the same two
+          // colors the actual particle system uses, not approximated.
+          const r = Math.round(76 + p.hueMix * 30);
+          const g = Math.round(201 + p.hueMix * 50);
+          const b = Math.round(240 - p.hueMix * 42);
+
+          ctx.beginPath();
+          ctx.arc(x, y, p.size, 0, Math.PI * 2);
+          ctx.fillStyle = `rgba(${r},${g},${b},${0.75 * fade})`;
+          ctx.shadowColor = `rgba(${r},${g},${b},0.9)`;
+          ctx.shadowBlur = 8;
+          ctx.fill();
+        }
+        ctx.shadowBlur = 0;
+
+        rafId = requestAnimationFrame(renderVortex);
+      }
+      renderVortex();
+
+      // Stop the loop once the loading screen is gone - no need to
+      // keep animating an invisible, removed canvas.
+      const loader = document.getElementById('loading-screen');
+      if (loader) {
+        const stopObserver = new MutationObserver(() => {
+          if (!document.body.contains(loader)) {
+            if (rafId) cancelAnimationFrame(rafId);
+            stopObserver.disconnect();
+          }
+        });
+        stopObserver.observe(document.body, { childList: true });
+      }
+    })();
+
+    // Loading screen: hides once BOTH a minimum display time has
+    // passed (so it never flashes by too fast to register) AND the
+    // page has actually finished loading (so slow connections still
+    // see it until things are ready).
+    (function() {
+      let minTimeElapsed = false;
+      let pageLoaded = false;
+      function maybeHideLoader() {
+        if (!minTimeElapsed || !pageLoaded) return;
+        const loader = document.getElementById('loading-screen');
+        if (!loader) return;
+        loader.classList.add('loading-hidden');
+        setTimeout(() => loader.remove(), 650);
+      }
+      setTimeout(() => { minTimeElapsed = true; maybeHideLoader(); }, 900);
+      window.addEventListener('load', () => { pageLoaded = true; maybeHideLoader(); });
+    })();
+
     // ================= SIMULATION ENGINE =================
     window.addEventListener('DOMContentLoaded', () => {
       applyTheme('home');
@@ -1632,6 +1957,17 @@
         active: false
       };
       let lastMouse = { x: mouse.x, y: mouse.y };
+
+      // Activated briefly during page transitions so particles look
+      // like they're being pulled down and swept into the rising
+      // wave, rather than just sitting there while it covers them.
+      let sweepActive = false;
+      let sweepTimer = null;
+      window.triggerParticleSweep = function(durationMs) {
+        sweepActive = true;
+        clearTimeout(sweepTimer);
+        sweepTimer = setTimeout(() => { sweepActive = false; }, durationMs);
+      };
 
       function resize() {
         width = canvas.width = window.innerWidth;
@@ -1707,6 +2043,7 @@
           const wave = Math.sin(this.y * 0.003 + t * 1.5) * 0.25;
           this.vx += wave * 0.025;
           this.vy += 0.008;
+          if (sweepActive) this.vy += 0.6;
 
           const activeTheme = THEMES[currentThemeKey];
 
@@ -1811,30 +2148,31 @@
       let rafId = null;
 
       function render() {
-        // While actively scrolling, skip the frame entirely - the canvas
-        // just holds its last frame for this brief moment. This frees the
-        // full cost of the animation for exactly the window where the
-        // browser needs the main thread for scroll/paint work, and it
-        // resumes automatically once the scroll settles.
+        // While actively scrolling, the animation slows way down rather
+        // than freezing outright - it keeps visibly moving, just more
+        // gently, so scrolling never looks like the background just
+        // stopped. Full speed resumes automatically once scrolling
+        // settles (handled by markScrolling's timeout above).
+        const scrollFactor = isScrolling ? 0.22 : 1;
+        time += 0.004 * scrollFactor;
+
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.fillStyle = 'rgba(2, 6, 13, 0.09)';
+        ctx.fillRect(0, 0, width, height);
+
         if (!isScrolling) {
-          time += 0.004;
-
-          ctx.globalCompositeOperation = 'source-over';
-          ctx.fillStyle = 'rgba(2, 6, 13, 0.09)';
-          ctx.fillRect(0, 0, width, height);
-
           ctx.globalCompositeOperation = 'screen';
           drawAuroraBorealis(time);
-
-          ctx.globalCompositeOperation = 'lighter';
-          for (let i = 0; i < particles.length; i++) {
-            particles[i].update(time);
-            particles[i].draw();
-          }
-
-          mouse.vx *= 0.85;
-          mouse.vy *= 0.85;
         }
+
+        ctx.globalCompositeOperation = 'lighter';
+        for (let i = 0; i < particles.length; i++) {
+          particles[i].update(time);
+          particles[i].draw();
+        }
+
+        mouse.vx *= 0.85;
+        mouse.vy *= 0.85;
 
         rafId = requestAnimationFrame(render);
       }

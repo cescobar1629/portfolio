@@ -527,23 +527,27 @@
       gap: 6px;
     }
 
-    /* 167 Photo Gallery Grid.
-       Tiles are absolutely positioned (not CSS Grid) inside a "sizer"
-       div whose height matches the full virtual content height. This
-       lets scrolling just reposition/re-source a small recycled pool
-       of nodes via transform, instead of forcing the browser to
-       recompute a whole CSS Grid layout on every change. */
+    /* 167 Photo Gallery Filmstrip.
+       A single horizontal row instead of a vertical grid - gently
+       auto-scrolls on its own (pausing the moment you touch, scroll,
+       or hover it), while still being fully swipeable/scrollable by
+       hand at any time. Tiles are absolutely positioned (not flex)
+       inside a "sizer" div sized to the full virtual filmstrip width,
+       so scrolling only repositions/re-sources a small recycled pool
+       of nodes via transform, instead of the browser managing 167
+       real flex children at once. */
     .gallery-grid {
       position: relative;
       margin: 20px 0 35px 0;
-      max-height: 700px;
-      overflow-y: auto;
-      overflow-x: hidden;
-      padding-right: 8px;
+      height: 240px;
+      overflow-x: auto;
+      overflow-y: hidden;
+      scroll-snap-type: x proximity;
+      padding-bottom: 8px;
     }
 
     .gallery-grid::-webkit-scrollbar {
-      width: 6px;
+      height: 6px;
     }
     .gallery-grid::-webkit-scrollbar-thumb {
       background: var(--glass-border);
@@ -552,19 +556,21 @@
 
     .gallery-inner {
       position: relative;
-      width: 100%;
+      height: 100%;
     }
 
     .gallery-item {
       position: absolute;
       top: 0;
       left: 0;
-      height: 130px;
+      width: 300px;
+      height: 200px;
       border-radius: 6px;
       overflow: hidden;
       border: 1px solid var(--glass-border);
       background: #081424;
       cursor: pointer;
+      scroll-snap-align: start;
       will-change: transform;
     }
 
@@ -1135,24 +1141,21 @@
       renderPlaceholder(img, `#${index}`);
     }
 
-    // ============ VIRTUALIZED GALLERY (recycled node pool) ============
-    // A fixed pool of DOM nodes - sized to just cover the viewport plus
-    // a small buffer - is created ONCE. Scrolling never creates or
-    // destroys elements; it only repositions (via transform, which is
-    // compositor-cheap) and re-sources whichever pool nodes now need to
-    // represent a different image index. This avoids both the DOM
-    // churn and the full-container relayout that come with inserting/
-    // removing real grid children on every scroll frame.
-    const GALLERY_ROW_HEIGHT = 142; // 130px tile + 12px gap
-    const GALLERY_MIN_ITEM_WIDTH = 180;
-    const GALLERY_GAP = 12;
-    const GALLERY_BUFFER_ROWS = 2;
+    // ============ FILMSTRIP GALLERY (recycled node pool) ============
+    // A fixed pool of DOM nodes - sized to just cover the visible
+    // width plus a small buffer - is created ONCE. Scrolling (whether
+    // auto-driven or by hand) never creates or destroys elements; it
+    // only repositions (via transform, compositor-cheap) and
+    // re-sources whichever pool nodes now need to represent a
+    // different image index.
+    const GALLERY_ITEM_WIDTH = 300;
+    const GALLERY_ITEM_HEIGHT = 200;
+    const GALLERY_GAP = 14;
+    const GALLERY_BUFFER_ITEMS = 4;
     const MAX_CONCURRENT_IMAGE_LOADS = 4;
 
     let galleryContainer = null;
     let galleryInner = null;
-    let galleryColumns = 1;
-    let galleryItemWidth = 180;
     let galleryPool = []; // { el, img, assignedIndex }
     const loadedGalleryIndices = new Set(); // already-fetched, safe to reuse from cache
     let activeImageLoads = 0;
@@ -1177,20 +1180,10 @@
       }
     }
 
-    function measureGalleryColumns() {
-      if (!galleryContainer) return 1;
-      const w = galleryContainer.clientWidth;
-      const cols = Math.max(1, Math.floor((w + GALLERY_GAP) / (GALLERY_MIN_ITEM_WIDTH + GALLERY_GAP)));
-      galleryItemWidth = (w - GALLERY_GAP * (cols - 1)) / cols;
-      return cols;
-    }
-
     function buildGalleryPool() {
-      // Enough rows to cover the tallest possible viewport (capped by
-      // the CSS max-height) plus buffer on both sides.
-      const maxViewportRows = Math.ceil(700 / GALLERY_ROW_HEIGHT) + 1;
-      const poolRows = maxViewportRows + GALLERY_BUFFER_ROWS * 2;
-      const poolSize = poolRows * galleryColumns;
+      if (!galleryContainer) return;
+      const viewportItems = Math.ceil(galleryContainer.clientWidth / (GALLERY_ITEM_WIDTH + GALLERY_GAP));
+      const poolSize = viewportItems + GALLERY_BUFFER_ITEMS * 2;
 
       galleryInner.innerHTML = '';
       galleryPool = [];
@@ -1210,12 +1203,8 @@
     }
 
     function positionPoolNode(node, index) {
-      const row = Math.floor((index - 1) / galleryColumns);
-      const col = (index - 1) % galleryColumns;
-      const x = col * (galleryItemWidth + GALLERY_GAP);
-      const y = row * GALLERY_ROW_HEIGHT;
-      node.el.style.width = galleryItemWidth + 'px';
-      node.el.style.transform = `translate(${x}px, ${y}px)`;
+      const x = (index - 1) * (GALLERY_ITEM_WIDTH + GALLERY_GAP);
+      node.el.style.transform = `translateX(${x}px)`;
     }
 
     function assignPoolNode(node, index) {
@@ -1246,18 +1235,16 @@
     function renderGalleryWindow() {
       if (!galleryContainer || !galleryPool.length) return;
 
-      const scrollTop = galleryContainer.scrollTop;
-      const viewHeight = galleryContainer.clientHeight;
-      const totalRows = Math.ceil(TOTAL_CORIOLANUS_IMAGES / galleryColumns);
+      const scrollLeft = galleryContainer.scrollLeft;
+      const viewWidth = galleryContainer.clientWidth;
+      const itemSpan = GALLERY_ITEM_WIDTH + GALLERY_GAP;
 
-      const firstVisibleRow = Math.floor(scrollTop / GALLERY_ROW_HEIGHT);
-      const lastVisibleRow = Math.ceil((scrollTop + viewHeight) / GALLERY_ROW_HEIGHT);
+      const firstVisible = Math.floor(scrollLeft / itemSpan);
+      const lastVisible = Math.ceil((scrollLeft + viewWidth) / itemSpan);
 
-      const startRow = Math.max(0, firstVisibleRow - GALLERY_BUFFER_ROWS);
-      const endRow = Math.min(totalRows, lastVisibleRow + GALLERY_BUFFER_ROWS);
+      const startIndex = Math.max(1, firstVisible - GALLERY_BUFFER_ITEMS + 1);
+      const endIndex = Math.min(TOTAL_CORIOLANUS_IMAGES, lastVisible + GALLERY_BUFFER_ITEMS);
 
-      const startIndex = startRow * galleryColumns + 1;
-      const endIndex = Math.min(TOTAL_CORIOLANUS_IMAGES, endRow * galleryColumns);
       const neededIndices = [];
       for (let i = startIndex; i <= endIndex; i++) neededIndices.push(i);
 
@@ -1284,7 +1271,7 @@
         assignPoolNode(node, index);
       }
 
-      galleryInner.style.height = (totalRows * GALLERY_ROW_HEIGHT - GALLERY_GAP) + 'px';
+      galleryInner.style.width = (TOTAL_CORIOLANUS_IMAGES * itemSpan - GALLERY_GAP) + 'px';
       processImageLoadQueue();
     }
 
@@ -1298,6 +1285,43 @@
       });
     }
 
+    // ===== Gentle auto-scroll, paused by any real interaction =====
+    // Drifts the filmstrip slowly to the right on its own. The moment
+    // someone touches, scrolls, or hovers it, it pauses - so it never
+    // fights the person actually trying to look at or swipe through
+    // the photos - then resumes on its own a couple seconds after
+    // they're done.
+    const AUTO_SCROLL_SPEED = 0.55; // px per frame
+    const AUTO_SCROLL_RESUME_DELAY = 2200; // ms of inactivity before resuming
+    let autoScrollPaused = false;
+    let autoScrollResumeTimer = null;
+
+    function pauseAutoScrollTemporarily() {
+      autoScrollPaused = true;
+      clearTimeout(autoScrollResumeTimer);
+      autoScrollResumeTimer = setTimeout(() => {
+        autoScrollPaused = false;
+      }, AUTO_SCROLL_RESUME_DELAY);
+    }
+
+    function pauseAutoScrollIndefinitely() {
+      autoScrollPaused = true;
+      clearTimeout(autoScrollResumeTimer);
+    }
+
+    function autoScrollStep() {
+      if (galleryContainer && !autoScrollPaused) {
+        const maxScroll = galleryContainer.scrollWidth - galleryContainer.clientWidth;
+        if (maxScroll > 1) {
+          galleryContainer.scrollLeft += AUTO_SCROLL_SPEED;
+          if (galleryContainer.scrollLeft >= maxScroll) {
+            galleryContainer.scrollLeft = 0;
+          }
+        }
+      }
+      requestAnimationFrame(autoScrollStep);
+    }
+
     function buildCoriolanusGallery() {
       const container = document.getElementById('coriolanus-gallery');
       const inner = document.getElementById('coriolanus-gallery-inner');
@@ -1306,35 +1330,36 @@
       galleryContainer = container;
       galleryInner = inner;
 
-      galleryColumns = measureGalleryColumns();
       buildGalleryPool();
       renderGalleryWindow();
 
-      // The very first call above measures clientHeight before the
+      // The very first call above measures clientWidth before the
       // subpage is visible (display:none reports 0 no matter how many
       // frames pass) - re-measure once it's actually shown. See also
       // the re-measure call in navigateTo() for when this page is
       // opened after initial load.
       requestAnimationFrame(() => {
         requestAnimationFrame(() => {
-          const cols = measureGalleryColumns();
-          if (cols !== galleryColumns) {
-            galleryColumns = cols;
-            buildGalleryPool();
-          }
+          buildGalleryPool();
           renderGalleryWindow();
         });
       });
 
       container.addEventListener('scroll', queueGalleryRender, { passive: true });
       window.addEventListener('resize', () => {
-        const newColumns = measureGalleryColumns();
-        if (newColumns !== galleryColumns) {
-          galleryColumns = newColumns;
-          buildGalleryPool();
-        }
+        buildGalleryPool();
         renderGalleryWindow();
       }, { passive: true });
+
+      // Any real interaction pauses auto-scroll for a bit, so it
+      // never fights someone actively looking or swiping.
+      container.addEventListener('pointerdown', pauseAutoScrollTemporarily, { passive: true });
+      container.addEventListener('touchstart', pauseAutoScrollTemporarily, { passive: true });
+      container.addEventListener('wheel', pauseAutoScrollTemporarily, { passive: true });
+      container.addEventListener('mouseenter', pauseAutoScrollIndefinitely);
+      container.addEventListener('mouseleave', pauseAutoScrollTemporarily);
+
+      requestAnimationFrame(autoScrollStep);
     }
 
     // Lightbox Controls
@@ -1352,6 +1377,7 @@
 
       counter.innerText = `Image ${currentLightboxIndex} / ${TOTAL_CORIOLANUS_IMAGES}`;
       lb.classList.add('active');
+      pauseAutoScrollIndefinitely();
     }
 
     function openHeroLightbox() {
@@ -1371,6 +1397,7 @@
 
     function closeLightbox() {
       document.getElementById('lightbox').classList.remove('active');
+      pauseAutoScrollTemporarily();
     }
 
     function nextLightbox(e) {
@@ -1450,18 +1477,12 @@
       applyTheme(currentThemeKey);
 
       // The gallery is built once at page load, while its subpage is
-      // still hidden (clientHeight/clientWidth read 0 for display:none
-      // elements, no matter how many frames pass). Re-measure now that
-      // the page is actually visible and has real layout dimensions -
-      // and rebuild the node pool too, since it was originally sized
-      // for the (wrong) hidden-page column count.
-      if (viewId === 'mark-morris' && typeof measureGalleryColumns === 'function') {
+      // still hidden (clientWidth reads 0 for display:none elements,
+      // no matter how many frames pass). Rebuild the pool now that
+      // the page is actually visible and has real layout dimensions.
+      if (viewId === 'mark-morris' && typeof buildGalleryPool === 'function') {
         requestAnimationFrame(() => {
-          const cols = measureGalleryColumns();
-          if (cols !== galleryColumns) {
-            galleryColumns = cols;
-            buildGalleryPool();
-          }
+          buildGalleryPool();
           renderGalleryWindow();
         });
       }

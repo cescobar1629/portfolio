@@ -289,6 +289,7 @@
       display: flex;
       gap: 14px;
       align-items: center;
+      margin-left: auto;
     }
 
     .btn {
@@ -1688,7 +1689,8 @@
           stripTop: document.getElementById('aurora-strip-top'),
           introSection: document.querySelector('.home-intro'),
           header: document.querySelector('header'),
-          chevron: document.getElementById('homeIntroChevron')
+          chevron: document.getElementById('homeIntroChevron'),
+          brand: document.querySelector('.brand')
         };
       }
       return introDomCache;
@@ -1762,6 +1764,15 @@
         const stripTop = document.getElementById('aurora-strip-top');
         if (canvas) canvas.style.display = isHome ? 'block' : 'none';
 
+        // Header only appears on the home page now - subpages already
+        // have their own "Back" button, so a persistent header with
+        // nav buttons isn't needed there.
+        const header = getIntroDomRefs().header;
+        if (header) {
+          header.style.display = isHome ? '' : 'none';
+          if (!isHome) header.style.opacity = '0'; // reset so the next reveal has something to fade from
+        }
+
         if (stripBottom) stripBottom.classList.add('active');
         if (stripTop) stripTop.classList.add('active');
 
@@ -1776,19 +1787,14 @@
             window.addEventListener('scroll', homeIntroScrollHandler, { passive: true });
           }
         } else {
-          // Subpages: constant opacity, not tied to scroll. Header is
-          // always visible here too - there's no intro to scroll past.
+          // Subpages: constant aurora opacity, not tied to scroll.
+          // Header itself is hidden entirely (handled above).
           if (homeIntroScrollHandler) {
             window.removeEventListener('scroll', homeIntroScrollHandler);
             homeIntroScrollHandler = null;
           }
           if (stripBottom) stripBottom.style.opacity = '';
           if (stripTop) stripTop.style.opacity = '';
-          const header = getIntroDomRefs().header;
-          if (header) {
-            header.style.opacity = '1';
-            header.style.pointerEvents = 'auto';
-          }
         }
 
         if (isHome) {
@@ -1798,13 +1804,24 @@
         }
       }
 
-      function showTarget() {
+      function showTarget(fadeInDuration) {
         document.querySelectorAll('.view-page').forEach(page => {
           page.classList.remove('active', 'page-visible');
         });
         target.classList.add('active');
+        if (fadeInDuration) {
+          target.style.transition = `opacity ${fadeInDuration}ms ease, transform ${fadeInDuration}ms ease`;
+        }
         void target.offsetWidth; // force reflow so the fade-in actually transitions
-        requestAnimationFrame(() => target.classList.add('page-visible'));
+        requestAnimationFrame(() => {
+          target.classList.add('page-visible');
+          if (fadeInDuration) {
+            // Clear the override once its transition has finished, so
+            // a later quick crossfade on this same page isn't stuck
+            // using the longer wave-synced duration.
+            setTimeout(() => { target.style.transition = ''; }, fadeInDuration + 50);
+          }
+        });
 
         // Once you've already scrolled past the home intro once, there's
         // no need to make you sit through it again every time you come
@@ -1843,8 +1860,27 @@
             window.triggerParticleSweep(WAVE_RISE_MS + 150);
           }
 
-          // The wave itself will visually cover the current page as
-          // it rises - no separate fade-out needed here.
+          // If we're leaving home, fade the header out over the same
+          // duration as the wave's rise too, rather than leaving it
+          // fully visible until it gets abruptly hidden the instant
+          // the wave finishes covering the screen.
+          if (wasHome) {
+            const header = getIntroDomRefs().header;
+            if (header) {
+              header.style.transition = `opacity ${WAVE_RISE_MS}ms ease`;
+              header.style.opacity = '0';
+              setTimeout(() => { header.style.transition = ''; }, WAVE_RISE_MS + 50);
+            }
+          }
+
+          // Fade the current page out over the exact same duration as
+          // the wave's rise, so the content visibly dissolves in sync
+          // with the water instead of sitting fully opaque until the
+          // wave physically reaches it (which read as an abrupt cut,
+          // not a fade).
+          current.style.transition = `opacity ${WAVE_RISE_MS}ms ease, transform ${WAVE_RISE_MS}ms ease`;
+          current.classList.remove('page-visible');
+
           setWaveColorsForTheme(viewId);
           if (waveOverlay) waveOverlay.classList.add('rising');
 
@@ -1852,8 +1888,23 @@
             // Fully covered by the wave now - safe to swap the
             // background/theme and page content without it being
             // seen, then recede the wave to reveal the new page.
+            current.style.transition = ''; // clear the override so future quick crossfades aren't affected
+
+            // If we're returning to home, the header should fade back
+            // in gracefully alongside everything else rather than
+            // snapping to its scroll-computed opacity almost
+            // instantly (its own CSS transition is a quick 150ms,
+            // meant for smooth scroll updates, not this moment).
+            if (viewId === 'home') {
+              const header = getIntroDomRefs().header;
+              if (header) {
+                header.style.transition = `opacity ${WAVE_RISE_MS}ms ease`;
+                setTimeout(() => { header.style.transition = ''; }, WAVE_RISE_MS + 50);
+              }
+            }
+
             applyBackgroundForView();
-            showTarget();
+            showTarget(WAVE_RISE_MS);
             if (waveOverlay) waveOverlay.classList.remove('rising');
           }, WAVE_RISE_MS);
         } else {

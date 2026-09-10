@@ -542,16 +542,21 @@
       height: 240px;
       overflow-x: auto;
       overflow-y: hidden;
-      scroll-snap-type: x proximity;
       padding-bottom: 8px;
     }
 
     .gallery-grid::-webkit-scrollbar {
-      height: 6px;
+      height: 12px;
+    }
+    .gallery-grid::-webkit-scrollbar-track {
+      background: rgba(255, 255, 255, 0.04);
+      border-radius: 10px;
     }
     .gallery-grid::-webkit-scrollbar-thumb {
       background: var(--glass-border);
       border-radius: 10px;
+      border: 2px solid transparent;
+      background-clip: padding-box;
     }
 
     .gallery-inner {
@@ -570,7 +575,6 @@
       border: 1px solid var(--glass-border);
       background: #081424;
       cursor: pointer;
-      scroll-snap-align: start;
       will-change: transform;
     }
 
@@ -1092,7 +1096,7 @@
     };
 
     let currentThemeKey = 'home';
-    const TOTAL_CORIOLANUS_IMAGES = 167;
+    const TOTAL_CORIOLANUS_IMAGES = 111;
     let currentLightboxIndex = 1;
 
     // Exact filenames for the gallery, loaded from gallery.json (a
@@ -1152,7 +1156,7 @@
     const GALLERY_ITEM_HEIGHT = 200;
     const GALLERY_GAP = 14;
     const GALLERY_BUFFER_ITEMS = 4;
-    const MAX_CONCURRENT_IMAGE_LOADS = 4;
+    const MAX_CONCURRENT_IMAGE_LOADS = 6;
 
     let galleryContainer = null;
     let galleryInner = null;
@@ -1356,7 +1360,7 @@
       container.addEventListener('pointerdown', pauseAutoScrollTemporarily, { passive: true });
       container.addEventListener('touchstart', pauseAutoScrollTemporarily, { passive: true });
       container.addEventListener('wheel', pauseAutoScrollTemporarily, { passive: true });
-      container.addEventListener('mouseenter', pauseAutoScrollIndefinitely);
+      container.addEventListener('mouseenter', pauseAutoScrollTemporarily);
       container.addEventListener('mouseleave', pauseAutoScrollTemporarily);
 
       requestAnimationFrame(autoScrollStep);

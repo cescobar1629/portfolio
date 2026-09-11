@@ -1,0 +1,15 @@
+{
+  "name": "td-relay",
+  "version": "1.0.0",
+  "description": "WebSocket relay bridging a TouchDesigner instance to website visitors",
+  "main": "relay-server.js",
+  "scripts": {
+    "start": "node relay-server.js"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

@@ -526,6 +526,12 @@
     }
 
     /* Section header above the production gallery (title + hint) */
+    .season-divider {
+      height: 1px;
+      background: var(--glass-border);
+      margin: 45px 0 5px 0;
+    }
+
     .gallery-header {
       display: flex;
       justify-content: space-between;
@@ -1053,6 +1059,16 @@
           <button class="btn" onclick="navigateTo('performances')">View Other Venues</button>
           <a href="mailto:christopher.escobar@stonybrook.edu?subject=Coriolanus Fall 2024 Work Inquiry" class="btn btn-subtle">Request Full Production Archive</a>
         </div>
+
+        <!-- ===== Fall 2025 Season ===== -->
+        <div class="season-divider"></div>
+
+        <div class="gallery-header">
+          <h3>Fall 2025</h3>
+          <span>Click any image to enlarge</span>
+        </div>
+
+        <div id="fall2025-gallery" class="gallery-grid"><div id="fall2025-gallery-inner" class="gallery-inner"></div></div>
       </div>
     </div>
 
@@ -1279,28 +1295,6 @@
     };
 
     let currentThemeKey = 'home';
-    const TOTAL_CORIOLANUS_IMAGES = 111;
-    let currentLightboxIndex = 1;
-
-    // Exact filenames for the gallery, loaded from gallery.json (a
-    // manifest matching your repo's real file listing) rather than
-    // guessed at runtime. Falls back to the same known-correct
-    // pattern if the fetch can't succeed (e.g. opening the file
-    // directly via file:// instead of a real web server).
-    let GALLERY_FILES = null;
-    async function loadGalleryManifest() {
-      try {
-        const res = await fetch('gallery.json');
-        if (!res.ok) throw new Error('gallery.json not reachable');
-        const data = await res.json();
-        GALLERY_FILES = data.images;
-      } catch (e) {
-        GALLERY_FILES = Array.from(
-          { length: TOTAL_CORIOLANUS_IMAGES },
-          (_, i) => `Coriolanus(${i + 1}).JPG`
-        );
-      }
-    }
 
     // Fallback handler specifically for the DSC_2480 preview image
     function handlePreviewError(img) {
@@ -1320,253 +1314,314 @@
       }
     }
 
-    // Fallback handler for gallery items. Since the primary src now
-    // comes from the exact gallery.json manifest, reaching this means
-    // that specific listed file genuinely isn't reachable - show the
-    // placeholder immediately rather than guessing at more variants.
-    function handleCoriolanusError(img, index) {
-      renderPlaceholder(img, `#${index}`);
-    }
-
     // ============ FILMSTRIP GALLERY (recycled node pool) ============
     // A fixed pool of DOM nodes - sized to just cover the visible
-    // width plus a small buffer - is created ONCE. Scrolling (whether
-    // auto-driven or by hand) never creates or destroys elements; it
-    // only repositions (via transform, compositor-cheap) and
-    // re-sources whichever pool nodes now need to represent a
-    // different image index.
+    // width plus a small buffer - is created ONCE per gallery
+    // instance. Scrolling (whether auto-driven or by hand) never
+    // creates or destroys elements; it only repositions (via
+    // transform, compositor-cheap) and re-sources whichever pool
+    // nodes now need to represent a different image index.
+    //
+    // This factory lets multiple independent galleries exist on the
+    // same page (e.g. Coriolanus and Fall 2025 both on the Mark
+    // Morris page) - each instance gets its own isolated pool, load
+    // queue, and auto-scroll state, while sharing the same logic.
     const GALLERY_ITEM_WIDTH = 300;
     const GALLERY_ITEM_HEIGHT = 200;
     const GALLERY_GAP = 14;
     const GALLERY_BUFFER_ITEMS = 4;
     const MAX_CONCURRENT_IMAGE_LOADS = 6;
-
-    let galleryContainer = null;
-    let galleryInner = null;
-    let galleryPool = []; // { el, img, assignedIndex }
-    const loadedGalleryIndices = new Set(); // already-fetched, safe to reuse from cache
-    let activeImageLoads = 0;
-    const imageLoadQueue = [];
-
-    function processImageLoadQueue() {
-      while (activeImageLoads < MAX_CONCURRENT_IMAGE_LOADS && imageLoadQueue.length) {
-        const img = imageLoadQueue.shift();
-        if (!img.dataset.src) continue;
-        activeImageLoads++;
-        const src = img.dataset.src;
-        const index = Number(img.dataset.index);
-        delete img.dataset.src;
-        img.src = src;
-        const done = () => {
-          loadedGalleryIndices.add(index);
-          activeImageLoads--;
-          processImageLoadQueue();
-        };
-        img.addEventListener('load', done, { once: true });
-        img.addEventListener('error', done, { once: true });
-      }
-    }
-
-    function buildGalleryPool() {
-      if (!galleryContainer) return;
-      const viewportItems = Math.ceil(galleryContainer.clientWidth / (GALLERY_ITEM_WIDTH + GALLERY_GAP));
-      const poolSize = viewportItems + GALLERY_BUFFER_ITEMS * 2;
-
-      galleryInner.innerHTML = '';
-      galleryPool = [];
-
-      for (let p = 0; p < poolSize; p++) {
-        const item = document.createElement('div');
-        item.className = 'gallery-item';
-
-        const img = document.createElement('img');
-        img.decoding = 'async';
-
-        item.appendChild(img);
-        galleryInner.appendChild(item);
-
-        galleryPool.push({ el: item, img: img, assignedIndex: -1 });
-      }
-    }
-
-    function positionPoolNode(node, index) {
-      const x = (index - 1) * (GALLERY_ITEM_WIDTH + GALLERY_GAP);
-      node.el.style.transform = `translateX(${x}px)`;
-    }
-
-    function assignPoolNode(node, index) {
-      node.assignedIndex = index;
-      node.el.setAttribute('onclick', `openLightboxByIndex(${index})`);
-
-      const img = node.img;
-      img.alt = `Coriolanus Still ${index}`;
-      img.dataset.index = String(index);
-      delete img.dataset.attempt;
-      img.onerror = function() {
-        handleCoriolanusError(this, index);
-      };
-
-      const src = GALLERY_FILES ? GALLERY_FILES[index - 1] : `Coriolanus(${index}).JPG`;
-      if (loadedGalleryIndices.has(index)) {
-        delete img.dataset.src;
-        img.src = src; // already fetched this session - cache serves it instantly
-      } else {
-        img.removeAttribute('src');
-        img.dataset.src = src;
-        imageLoadQueue.push(img);
-      }
-
-      positionPoolNode(node, index);
-    }
-
-    function renderGalleryWindow() {
-      if (!galleryContainer || !galleryPool.length) return;
-
-      const scrollLeft = galleryContainer.scrollLeft;
-      const viewWidth = galleryContainer.clientWidth;
-      const itemSpan = GALLERY_ITEM_WIDTH + GALLERY_GAP;
-
-      const firstVisible = Math.floor(scrollLeft / itemSpan);
-      const lastVisible = Math.ceil((scrollLeft + viewWidth) / itemSpan);
-
-      const startIndex = Math.max(1, firstVisible - GALLERY_BUFFER_ITEMS + 1);
-      const endIndex = Math.min(TOTAL_CORIOLANUS_IMAGES, lastVisible + GALLERY_BUFFER_ITEMS);
-
-      const neededIndices = [];
-      for (let i = startIndex; i <= endIndex; i++) neededIndices.push(i);
-
-      const currentlyAssigned = new Set(galleryPool.map(n => n.assignedIndex));
-      const stillNeeded = new Set(neededIndices);
-
-      // Free pool nodes no longer needed, keep track of which ones.
-      const freeNodes = [];
-      for (const node of galleryPool) {
-        if (node.assignedIndex !== -1 && !stillNeeded.has(node.assignedIndex)) {
-          node.assignedIndex = -1;
-          node.el.style.display = 'none';
-        }
-        if (node.assignedIndex === -1) freeNodes.push(node);
-      }
-
-      // Assign a free node to each needed index that isn't already covered.
-      let freePtr = 0;
-      for (const index of neededIndices) {
-        if (currentlyAssigned.has(index)) continue; // already showing this one
-        const node = freeNodes[freePtr++];
-        if (!node) break; // pool undersized for this viewport - shouldn't normally happen
-        node.el.style.display = 'block';
-        assignPoolNode(node, index);
-      }
-
-      galleryInner.style.width = (TOTAL_CORIOLANUS_IMAGES * itemSpan - GALLERY_GAP) + 'px';
-      processImageLoadQueue();
-    }
-
-    let galleryRenderQueued = false;
-    function queueGalleryRender() {
-      if (galleryRenderQueued) return;
-      galleryRenderQueued = true;
-      requestAnimationFrame(() => {
-        galleryRenderQueued = false;
-        renderGalleryWindow();
-      });
-    }
-
-    // ===== Gentle auto-scroll, paused by any real interaction =====
-    // Drifts the filmstrip slowly to the right on its own. The moment
-    // someone touches, scrolls, or hovers it, it pauses - so it never
-    // fights the person actually trying to look at or swipe through
-    // the photos - then resumes on its own a couple seconds after
-    // they're done.
     const AUTO_SCROLL_SPEED = 0.55; // px per frame
     const AUTO_SCROLL_RESUME_DELAY = 2200; // ms of inactivity before resuming
-    let autoScrollPaused = false;
-    let autoScrollResumeTimer = null;
 
-    function pauseAutoScrollTemporarily() {
-      autoScrollPaused = true;
-      clearTimeout(autoScrollResumeTimer);
-      autoScrollResumeTimer = setTimeout(() => {
-        autoScrollPaused = false;
-      }, AUTO_SCROLL_RESUME_DELAY);
-    }
+    // Whichever gallery instance's lightbox is currently open - lets
+    // the shared lightbox (prev/next/counter) know which gallery's
+    // files and total count to use.
+    let activeLightboxGallery = null;
+    let currentLightboxIndex = 1;
 
-    function pauseAutoScrollIndefinitely() {
-      autoScrollPaused = true;
-      clearTimeout(autoScrollResumeTimer);
-    }
+    function createFilmstripGallery(config) {
+      const { containerId, innerId, manifestPath, totalImages, altPrefix, fallbackFilename } = config;
 
-    function autoScrollStep() {
-      if (galleryContainer && !autoScrollPaused) {
-        const maxScroll = galleryContainer.scrollWidth - galleryContainer.clientWidth;
-        if (maxScroll > 1) {
-          galleryContainer.scrollLeft += AUTO_SCROLL_SPEED;
-          if (galleryContainer.scrollLeft >= maxScroll) {
-            galleryContainer.scrollLeft = 0;
-          }
+      let galleryContainer = null;
+      let galleryInner = null;
+      let galleryPool = []; // { el, img, assignedIndex }
+      const loadedGalleryIndices = new Set(); // already-fetched, safe to reuse from cache
+      let activeImageLoads = 0;
+      const imageLoadQueue = [];
+      let GALLERY_FILES = null;
+      let autoScrollPaused = false;
+      let autoScrollResumeTimer = null;
+      let renderQueued = false;
+
+      async function loadManifest() {
+        try {
+          const res = await fetch(manifestPath);
+          if (!res.ok) throw new Error('manifest not reachable');
+          const data = await res.json();
+          GALLERY_FILES = data.images;
+        } catch (e) {
+          GALLERY_FILES = Array.from({ length: totalImages }, (_, i) => fallbackFilename(i + 1));
         }
       }
-      requestAnimationFrame(autoScrollStep);
-    }
 
-    function buildCoriolanusGallery() {
-      const container = document.getElementById('coriolanus-gallery');
-      const inner = document.getElementById('coriolanus-gallery-inner');
-      if (!container || !inner) return;
+      function getFile(index) {
+        return GALLERY_FILES ? GALLERY_FILES[index - 1] : fallbackFilename(index);
+      }
 
-      galleryContainer = container;
-      galleryInner = inner;
+      // Since the primary src comes from the manifest, reaching this
+      // means that specific listed file genuinely isn't reachable -
+      // show the placeholder immediately rather than guessing at
+      // more variants.
+      function handleImageError(img, index) {
+        renderPlaceholder(img, `#${index}`);
+      }
 
-      buildGalleryPool();
-      renderGalleryWindow();
+      function processImageLoadQueue() {
+        while (activeImageLoads < MAX_CONCURRENT_IMAGE_LOADS && imageLoadQueue.length) {
+          const img = imageLoadQueue.shift();
+          if (!img.dataset.src) continue;
+          activeImageLoads++;
+          const src = img.dataset.src;
+          const index = Number(img.dataset.index);
+          delete img.dataset.src;
+          img.src = src;
+          const done = () => {
+            loadedGalleryIndices.add(index);
+            activeImageLoads--;
+            processImageLoadQueue();
+          };
+          img.addEventListener('load', done, { once: true });
+          img.addEventListener('error', done, { once: true });
+        }
+      }
 
-      // The very first call above measures clientWidth before the
-      // subpage is visible (display:none reports 0 no matter how many
-      // frames pass) - re-measure once it's actually shown. See also
-      // the re-measure call in navigateTo() for when this page is
-      // opened after initial load.
-      requestAnimationFrame(() => {
+      function buildGalleryPool() {
+        if (!galleryContainer) return;
+        const viewportItems = Math.ceil(galleryContainer.clientWidth / (GALLERY_ITEM_WIDTH + GALLERY_GAP));
+        const poolSize = viewportItems + GALLERY_BUFFER_ITEMS * 2;
+
+        galleryInner.innerHTML = '';
+        galleryPool = [];
+
+        for (let p = 0; p < poolSize; p++) {
+          const item = document.createElement('div');
+          item.className = 'gallery-item';
+
+          const img = document.createElement('img');
+          img.decoding = 'async';
+
+          item.appendChild(img);
+          galleryInner.appendChild(item);
+
+          galleryPool.push({ el: item, img: img, assignedIndex: -1 });
+        }
+      }
+
+      function positionPoolNode(node, index) {
+        const x = (index - 1) * (GALLERY_ITEM_WIDTH + GALLERY_GAP);
+        node.el.style.transform = `translateX(${x}px)`;
+      }
+
+      function assignPoolNode(node, index) {
+        node.assignedIndex = index;
+        node.el.onclick = () => instance.openLightbox(index);
+
+        const img = node.img;
+        img.alt = `${altPrefix} ${index}`;
+        img.dataset.index = String(index);
+        delete img.dataset.attempt;
+        img.onerror = function() {
+          handleImageError(this, index);
+        };
+
+        const src = getFile(index);
+        if (loadedGalleryIndices.has(index)) {
+          delete img.dataset.src;
+          img.src = src; // already fetched this session - cache serves it instantly
+        } else {
+          img.removeAttribute('src');
+          img.dataset.src = src;
+          imageLoadQueue.push(img);
+        }
+
+        positionPoolNode(node, index);
+      }
+
+      function renderGalleryWindow() {
+        if (!galleryContainer || !galleryPool.length) return;
+
+        const scrollLeft = galleryContainer.scrollLeft;
+        const viewWidth = galleryContainer.clientWidth;
+        const itemSpan = GALLERY_ITEM_WIDTH + GALLERY_GAP;
+
+        const firstVisible = Math.floor(scrollLeft / itemSpan);
+        const lastVisible = Math.ceil((scrollLeft + viewWidth) / itemSpan);
+
+        const startIndex = Math.max(1, firstVisible - GALLERY_BUFFER_ITEMS + 1);
+        const endIndex = Math.min(totalImages, lastVisible + GALLERY_BUFFER_ITEMS);
+
+        const neededIndices = [];
+        for (let i = startIndex; i <= endIndex; i++) neededIndices.push(i);
+
+        const currentlyAssigned = new Set(galleryPool.map(n => n.assignedIndex));
+        const stillNeeded = new Set(neededIndices);
+
+        // Free pool nodes no longer needed, keep track of which ones.
+        const freeNodes = [];
+        for (const node of galleryPool) {
+          if (node.assignedIndex !== -1 && !stillNeeded.has(node.assignedIndex)) {
+            node.assignedIndex = -1;
+            node.el.style.display = 'none';
+          }
+          if (node.assignedIndex === -1) freeNodes.push(node);
+        }
+
+        // Assign a free node to each needed index that isn't already covered.
+        let freePtr = 0;
+        for (const index of neededIndices) {
+          if (currentlyAssigned.has(index)) continue; // already showing this one
+          const node = freeNodes[freePtr++];
+          if (!node) break; // pool undersized for this viewport - shouldn't normally happen
+          node.el.style.display = 'block';
+          assignPoolNode(node, index);
+        }
+
+        galleryInner.style.width = (totalImages * itemSpan - GALLERY_GAP) + 'px';
+        processImageLoadQueue();
+      }
+
+      function queueRender() {
+        if (renderQueued) return;
+        renderQueued = true;
         requestAnimationFrame(() => {
-          buildGalleryPool();
+          renderQueued = false;
           renderGalleryWindow();
         });
-      });
+      }
 
-      container.addEventListener('scroll', queueGalleryRender, { passive: true });
-      window.addEventListener('resize', () => {
-        buildGalleryPool();
-        renderGalleryWindow();
-      }, { passive: true });
+      // Gentle auto-scroll, paused by any real interaction - drifts
+      // the filmstrip slowly to the right on its own. The moment
+      // someone touches, scrolls, or hovers it, it pauses - so it
+      // never fights someone actively looking or swiping - then
+      // resumes on its own a couple seconds after they're done.
+      function pauseAutoScrollTemporarily() {
+        autoScrollPaused = true;
+        clearTimeout(autoScrollResumeTimer);
+        autoScrollResumeTimer = setTimeout(() => {
+          autoScrollPaused = false;
+        }, AUTO_SCROLL_RESUME_DELAY);
+      }
 
-      // Any real interaction pauses auto-scroll for a bit, so it
-      // never fights someone actively looking or swiping.
-      container.addEventListener('pointerdown', pauseAutoScrollTemporarily, { passive: true });
-      container.addEventListener('touchstart', pauseAutoScrollTemporarily, { passive: true });
-      container.addEventListener('wheel', pauseAutoScrollTemporarily, { passive: true });
-      container.addEventListener('mouseenter', pauseAutoScrollTemporarily);
-      container.addEventListener('mouseleave', pauseAutoScrollTemporarily);
+      function pauseAutoScrollIndefinitely() {
+        autoScrollPaused = true;
+        clearTimeout(autoScrollResumeTimer);
+      }
 
-      requestAnimationFrame(autoScrollStep);
-    }
+      function autoScrollStep() {
+        if (galleryContainer && !autoScrollPaused) {
+          const maxScroll = galleryContainer.scrollWidth - galleryContainer.clientWidth;
+          if (maxScroll > 1) {
+            galleryContainer.scrollLeft += AUTO_SCROLL_SPEED;
+            if (galleryContainer.scrollLeft >= maxScroll) {
+              galleryContainer.scrollLeft = 0;
+            }
+          }
+        }
+        requestAnimationFrame(autoScrollStep);
+      }
 
-    // Lightbox Controls
-    function openLightboxByIndex(index) {
-      currentLightboxIndex = index;
-      const lb = document.getElementById('lightbox');
-      const img = document.getElementById('lightbox-img');
-      const counter = document.getElementById('lightbox-counter');
+      const instance = {
+        init: async function() {
+          const container = document.getElementById(containerId);
+          const inner = document.getElementById(innerId);
+          if (!container || !inner) return;
 
-      img.dataset.attempt = "0";
-      img.src = GALLERY_FILES ? GALLERY_FILES[currentLightboxIndex - 1] : `Coriolanus(${currentLightboxIndex}).JPG`;
-      img.onerror = function() {
-        handleCoriolanusError(this, currentLightboxIndex);
+          galleryContainer = container;
+          galleryInner = inner;
+
+          await loadManifest();
+          buildGalleryPool();
+          renderGalleryWindow();
+
+          // The very first call above measures clientWidth before the
+          // subpage is visible (display:none reports 0 no matter how
+          // many frames pass) - re-measure once it's actually shown.
+          // See also rebuild(), called from navigateTo() for when
+          // this page is opened after initial load.
+          requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+              buildGalleryPool();
+              renderGalleryWindow();
+            });
+          });
+
+          galleryContainer.addEventListener('scroll', queueRender, { passive: true });
+          window.addEventListener('resize', () => {
+            buildGalleryPool();
+            renderGalleryWindow();
+          }, { passive: true });
+
+          // Any real interaction pauses auto-scroll for a bit, so it
+          // never fights someone actively looking or swiping.
+          galleryContainer.addEventListener('pointerdown', pauseAutoScrollTemporarily, { passive: true });
+          galleryContainer.addEventListener('touchstart', pauseAutoScrollTemporarily, { passive: true });
+          galleryContainer.addEventListener('wheel', pauseAutoScrollTemporarily, { passive: true });
+          galleryContainer.addEventListener('mouseenter', pauseAutoScrollTemporarily);
+          galleryContainer.addEventListener('mouseleave', pauseAutoScrollTemporarily);
+
+          requestAnimationFrame(autoScrollStep);
+        },
+        rebuild: function() {
+          buildGalleryPool();
+          renderGalleryWindow();
+        },
+        getFile,
+        getTotal: () => totalImages,
+        handleImageError,
+        pauseAutoScrollIndefinitely,
+        pauseAutoScrollTemporarily,
+        openLightbox: function(index) {
+          activeLightboxGallery = instance;
+          currentLightboxIndex = index;
+          const lb = document.getElementById('lightbox');
+          const img = document.getElementById('lightbox-img');
+          const counter = document.getElementById('lightbox-counter');
+
+          img.dataset.attempt = "0";
+          img.src = getFile(index);
+          img.onerror = function() {
+            handleImageError(this, index);
+          };
+
+          counter.innerText = `Image ${index} / ${totalImages}`;
+          lb.classList.add('active');
+          pauseAutoScrollIndefinitely();
+        }
       };
 
-      counter.innerText = `Image ${currentLightboxIndex} / ${TOTAL_CORIOLANUS_IMAGES}`;
-      lb.classList.add('active');
-      pauseAutoScrollIndefinitely();
+      return instance;
     }
 
+    const coriolanusGallery = createFilmstripGallery({
+      containerId: 'coriolanus-gallery',
+      innerId: 'coriolanus-gallery-inner',
+      manifestPath: 'gallery.json',
+      totalImages: 111,
+      altPrefix: 'Coriolanus Still',
+      fallbackFilename: (i) => `Coriolanus(${i}).JPG`
+    });
+
+    const fall2025Gallery = createFilmstripGallery({
+      containerId: 'fall2025-gallery',
+      innerId: 'fall2025-gallery-inner',
+      manifestPath: 'gallery-fall2025.json',
+      totalImages: 12,
+      altPrefix: 'Fall 2025 Still',
+      fallbackFilename: (i) => `Fall2025 (${i}).jpg`
+    });
+
+    // Lightbox Controls
     function openHeroLightbox() {
       const lb = document.getElementById('lightbox');
       const img = document.getElementById('lightbox-img');
@@ -1584,21 +1639,25 @@
 
     function closeLightbox() {
       document.getElementById('lightbox').classList.remove('active');
-      pauseAutoScrollTemporarily();
+      if (activeLightboxGallery) activeLightboxGallery.pauseAutoScrollTemporarily();
     }
 
     function nextLightbox(e) {
       if (e) e.stopPropagation();
+      if (!activeLightboxGallery) return;
+      const total = activeLightboxGallery.getTotal();
       currentLightboxIndex++;
-      if (currentLightboxIndex > TOTAL_CORIOLANUS_IMAGES) currentLightboxIndex = 1;
-      openLightboxByIndex(currentLightboxIndex);
+      if (currentLightboxIndex > total) currentLightboxIndex = 1;
+      activeLightboxGallery.openLightbox(currentLightboxIndex);
     }
 
     function prevLightbox(e) {
       if (e) e.stopPropagation();
+      if (!activeLightboxGallery) return;
+      const total = activeLightboxGallery.getTotal();
       currentLightboxIndex--;
-      if (currentLightboxIndex < 1) currentLightboxIndex = TOTAL_CORIOLANUS_IMAGES;
-      openLightboxByIndex(currentLightboxIndex);
+      if (currentLightboxIndex < 1) currentLightboxIndex = total;
+      activeLightboxGallery.openLightbox(currentLightboxIndex);
     }
 
     window.addEventListener('keydown', (e) => {
@@ -1865,14 +1924,15 @@
           window.scrollTo({ top: 0, behavior: 'auto' });
         }
 
-        // The gallery is built once at page load, while its subpage is
-        // still hidden (clientWidth reads 0 for display:none elements,
-        // no matter how many frames pass). Rebuild the pool now that
-        // the page is actually visible and has real layout dimensions.
-        if (viewId === 'mark-morris' && typeof buildGalleryPool === 'function') {
+        // The galleries are built once at page load, while their
+        // subpage is still hidden (clientWidth reads 0 for
+        // display:none elements, no matter how many frames pass).
+        // Rebuild both pools now that the page is actually visible
+        // and has real layout dimensions.
+        if (viewId === 'mark-morris') {
           requestAnimationFrame(() => {
-            buildGalleryPool();
-            renderGalleryWindow();
+            coriolanusGallery.rebuild();
+            fall2025Gallery.rebuild();
           });
         }
       }
@@ -2080,7 +2140,8 @@
     // ================= SIMULATION ENGINE =================
     window.addEventListener('DOMContentLoaded', () => {
       applyTheme('home');
-      loadGalleryManifest().then(buildCoriolanusGallery);
+      coriolanusGallery.init();
+      fall2025Gallery.init();
       loadWorks();
 
       // The page starts on home directly (not via navigateTo), so set

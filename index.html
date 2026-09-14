@@ -234,6 +234,25 @@
       100% { transform: translate(-50%, 0); }
     }
 
+    .wave-ripple-highlight {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      width: 200%;
+      height: 100%;
+      opacity: 0.18;
+      animation: rippleHighlightDrift 5.5s ease-in-out infinite;
+    }
+    .wave-ripple-highlight path {
+      stroke: #ffffff;
+      stroke-width: 1.5;
+      vector-effect: non-scaling-stroke;
+    }
+    @keyframes rippleHighlightDrift {
+      0%, 100% { transform: translateX(0) translateY(0); }
+      50% { transform: translateX(-2%) translateY(-4px); }
+    }
+
     /* Layout Container */
     .app-layout {
       position: relative;
@@ -897,6 +916,9 @@
     </svg>
     <svg class="wave-layer wave-layer-1" viewBox="0 0 2400 320" preserveAspectRatio="none">
       <path d="M0,170 C75,130 225,210 300,170 C375,130 525,210 600,170 C675,130 825,210 900,170 C975,130 1125,210 1200,170 C1275,130 1425,210 1500,170 C1575,130 1725,210 1800,170 C1875,130 2025,210 2100,170 C2175,130 2325,210 2400,170 L2400,320 L0,320 Z"/>
+    </svg>
+    <svg class="wave-ripple-highlight" viewBox="0 0 2400 320" preserveAspectRatio="none">
+      <path d="M0,170 C75,130 225,210 300,170 C375,130 525,210 600,170 C675,130 825,210 900,170 C975,130 1125,210 1200,170 C1275,130 1425,210 1500,170 C1575,130 1725,210 1800,170 C1875,130 2025,210 2100,170 C2175,130 2325,210 2400,170" fill="none"/>
     </svg>
   </div>
 
@@ -1700,9 +1722,20 @@
       const { stripBottom, stripTop, introSection, header, chevron } = getIntroDomRefs();
       const fadeDistance = window.innerHeight * 0.9;
       const fade = Math.max(0, 1 - window.scrollY / fadeDistance);
-      if (stripBottom) stripBottom.style.opacity = fade;
-      if (stripTop) stripTop.style.opacity = fade * 0.7; // top strip is normally dimmer (0.7 base)
+      if (stripBottom) stripBottom.style.opacity = 1 - fade;
+      if (stripTop) stripTop.style.opacity = (1 - fade) * 0.7; // top strip is normally dimmer (0.7 base)
       if (fade <= 0) homeIntroSeen = true;
+
+      // The particle canvas shares the same z-index as the aurora and
+      // sits on top of it in the DOM - if both are fully visible at
+      // once, the canvas's own trail-fade buildup (dark wherever
+      // particles have passed) visibly streaks/darkens the aurora
+      // underneath it. Particles are the dominant intro visual now,
+      // fading out as you scroll while the aurora fades in beneath -
+      // the two are never both at meaningful opacity at once, so they
+      // never compete for the same pixels.
+      const canvas = document.getElementById('feedback-canvas');
+      if (canvas) canvas.style.opacity = fade;
 
       // Chevron fades out quickly - fully gone within the first
       // quarter of the scroll - well before the header finishes
@@ -2158,7 +2191,7 @@
 
         update(t) {
           const wave = Math.sin(this.y * 0.003 + t * 1.5) * 0.25;
-          this.vx += wave * 0.025;
+          this.vx += wave * 0.09;
           this.vy += 0.008;
           if (sweepActive) this.vy += 0.6;
 
@@ -2274,7 +2307,7 @@
         time += 0.004 * scrollFactor;
 
         ctx.globalCompositeOperation = 'source-over';
-        ctx.fillStyle = 'rgba(2, 6, 13, 0.09)';
+        ctx.fillStyle = 'rgba(2, 6, 13, 0.15)';
         ctx.fillRect(0, 0, width, height);
 
         if (!isScrolling) {

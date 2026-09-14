@@ -1531,8 +1531,13 @@
         requestAnimationFrame(autoScrollStep);
       }
 
+      let initialized = false;
+
       const instance = {
         init: async function() {
+          if (initialized) return;
+          initialized = true;
+
           const container = document.getElementById(containerId);
           const inner = document.getElementById(innerId);
           if (!container || !inner) return;
@@ -1576,6 +1581,7 @@
           buildGalleryPool();
           renderGalleryWindow();
         },
+        isInitialized: () => initialized,
         getFile,
         getTotal: () => totalImages,
         handleImageError,
@@ -1930,10 +1936,16 @@
         // Rebuild both pools now that the page is actually visible
         // and has real layout dimensions.
         if (viewId === 'mark-morris') {
-          requestAnimationFrame(() => {
-            coriolanusGallery.rebuild();
-            fall2025Gallery.rebuild();
-          });
+          if (!coriolanusGallery.isInitialized()) {
+            coriolanusGallery.init();
+          } else {
+            requestAnimationFrame(() => coriolanusGallery.rebuild());
+          }
+          if (!fall2025Gallery.isInitialized()) {
+            fall2025Gallery.init();
+          } else {
+            requestAnimationFrame(() => fall2025Gallery.rebuild());
+          }
         }
       }
 
@@ -2140,8 +2152,6 @@
     // ================= SIMULATION ENGINE =================
     window.addEventListener('DOMContentLoaded', () => {
       applyTheme('home');
-      coriolanusGallery.init();
-      fall2025Gallery.init();
       loadWorks();
 
       // The page starts on home directly (not via navigateTo), so set

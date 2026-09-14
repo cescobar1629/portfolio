@@ -13,13 +13,13 @@
     {
       "id": "work-2",
       "navTarget": "work-2",
-      "title": "Installations",
-      "description": "An interactive installation for Art House NYC, presented at Ideal Glass Studios during my internship.",
-      "tag": "Kinect Azure / SOPs",
+      "title": "Videos",
+      "description": "Video documentation of live performances and installations - real-time visuals captured in motion.",
+      "tag": "Video Documentation",
       "image": "project2.jpg",
-      "imageAlt": "Installations",
+      "imageAlt": "Videos",
       "onImageError": "renderPlaceholder",
-      "placeholderLabel": "02: Installations"
+      "placeholderLabel": "02: Videos"
     }
   ]
 }

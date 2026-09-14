@@ -532,6 +532,56 @@
       margin: 45px 0 5px 0;
     }
 
+    /* Video grid - each card holds one native <video> player plus a
+       title and short description, in a responsive grid. */
+    .video-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 20px;
+      margin: 20px 0 10px 0;
+    }
+    .video-card {
+      background: rgba(2, 6, 13, 0.4);
+      border: 1px solid var(--glass-border);
+      border-radius: 8px;
+      padding: 14px;
+    }
+    .video-card video {
+      width: 100%;
+      aspect-ratio: 16 / 9;
+      border-radius: 6px;
+      background: #081424;
+      display: block;
+    }
+    .video-card h4 {
+      font-family: 'Cinzel', serif;
+      font-size: 1rem;
+      color: #ffffff;
+      margin: 12px 0 4px 0;
+    }
+    .video-card p {
+      font-size: 0.85rem;
+      color: #94a3b8;
+      line-height: 1.5;
+    }
+
+    /* Generic "coming soon" placeholder - reusable anywhere content
+       is being prepared but isn't uploaded yet. */
+    .gallery-placeholder-box {
+      grid-column: 1 / -1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 160px;
+      border: 1px dashed var(--glass-border);
+      border-radius: 8px;
+      background: rgba(2, 6, 13, 0.4);
+      color: #64748b;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.8rem;
+      text-align: center;
+    }
+
     .gallery-header {
       display: flex;
       justify-content: space-between;
@@ -1108,22 +1158,35 @@
       <div class="subpage-container">
         <div class="subpage-nav">
           <button class="btn btn-subtle" onclick="navigateTo('home')">&larr; Back to Works</button>
-          <span class="tag">Case Study</span>
+          <span class="tag">Video Documentation</span>
         </div>
         <div class="subpage-hero-img">
-          <img src="project2.jpg" alt="Installations" onerror="renderPlaceholder(this, 'Installations')">
+          <img src="project2.jpg" alt="Videos" onerror="renderPlaceholder(this, 'Videos')">
         </div>
-        <h2 class="subpage-title">Installations</h2>
-        <div class="subpage-tech">Kinect Azure / Point Clouds / SOP Geometry / Optical Flow</div>
+        <h2 class="subpage-title">Videos</h2>
+        <div class="subpage-tech">Live Performances / Installations / Real-Time Visual Systems</div>
         <p class="subpage-body">
-          Presented at Ideal Glass Studios during my internship with Art House NYC, this interactive installation used Kinect Azure depth cameras to track audience presence in real time — translating visitor movement into responsive point cloud visuals throughout the space.
+          Video documentation of live performances and installations - real-time visuals captured in motion, from spatial projection-mapped shows to interactive gallery installations.
         </p>
-        <div class="specs-grid">
-          <div class="spec-item"><h4>Sensor</h4><p>Azure Kinect Depth & IR</p></div>
-          <div class="spec-item"><h4>Point Count</h4><p>500,000 GPU Particles</p></div>
-          <div class="spec-item"><h4>Tracking</h4><p>Optical Flow + Skeleton</p></div>
+
+        <!-- ===== Video grid - add a .video-card per video once files
+             are uploaded. Example structure for reference:
+
+        <div class="video-card">
+          <video controls preload="metadata" poster="videos/example-poster.jpg">
+            <source src="videos/example.mp4" type="video/mp4">
+            Your browser does not support the video tag.
+          </video>
+          <h4>Video Title</h4>
+          <p>Short description of this video.</p>
         </div>
-        <a href="mailto:christopher.escobar@stonybrook.edu?subject=Inquiry: Installations" class="btn">Inquire About Exhibition / Licensing</a>
+
+        ===== -->
+        <div class="video-grid" id="videos-placeholder">
+          <div class="gallery-placeholder-box">
+            <span>Videos coming soon</span>
+          </div>
+        </div>
       </div>
     </div>
 
